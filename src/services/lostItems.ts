@@ -43,3 +43,33 @@ export async function getLostItems(): Promise<LostItemSummary[]> {
 
   return response.json()
 }
+
+
+export type LostItemDetails = LostItemSummary & {
+  description: string
+  brand: string | null
+  model: string | null
+  color: string | null
+  category_id: string
+  location_id: string
+  created_at: string
+  updated_at: string
+}
+
+export async function getLostItemById(
+  id: string
+): Promise<LostItemDetails> {
+  const response = await fetch(
+    `http://127.0.0.1:3001/api/lost-items/${encodeURIComponent(id)}`
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      response.status === 404
+        ? 'Report not found'
+        : 'Could not load report details'
+    )
+  }
+
+  return response.json()
+}

@@ -174,6 +174,76 @@ app.get('/api/lost-items', async (req, res) => {
   }
 })
 
+//:id identifies the report to open
+
+app.get('/api/lost-items/:id', async (req, res) => {
+  if (
+    process.env.LOCAL_DEMO_MODE !== 'true' ||
+    process.env.NODE_ENV === 'production'
+  ) {
+    return res.status(403).json({
+      message: 'Local demo mode is disabled',
+    })
+  }
+
+  const userId = z.uuid().safeParse(process.env.DEV_USER_ID)
+  const itemId = z.uuid().safeParse(req.params.id)
+
+  if (!userId.success) {
+    return res.status(500).json({
+      message: 'The local test user is not configured',
+    })
+  }
+
+  if (!itemId.success) {
+    return res.status(400).json({
+      message: 'Invalid report ID',
+    })
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT
+         li.id,
+         li.title,
+         li.description,
+         li.brand,
+         li.model,
+         li.color,
+         li.status,
+         li.category_id,
+         li.location_id,
+         TO_CHAR(li.date_lost, 'YYYY-MM-DD') AS date_lost,
+         li.created_at,
+         li.updated_at,
+         c.name AS category,
+         l.name AS location
+       FROM public.lost_items AS li
+       JOIN public.categories AS c ON c.id = li.category_id
+       JOIN public.locations AS l ON l.id = li.location_id
+       WHERE li.id = $1 AND li.user_id = $2`,
+      [itemId.data, userId.data]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: 'Report not found',
+      })
+    }
+
+    res.json(result.rows[0])
+  } catch (error) {
+    console.error('Could not load report details:', error.message)
+
+    res.status(500).json({
+      message: 'Could not load report details',
+    })
+  }
+})
+
+
+
+
 const port = Number(process.env.PORT || 3001)
 
 app.listen(port, '127.0.0.1', () => {

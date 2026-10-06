@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { ItemCard } from './ItemCard'
 import { getLostItems } from '../../services/lostItems'
 import type { LostItemSummary } from '../../services/lostItems'
+import { LostItemDetailsView } from './LostItemDetailsView'
 
 export function MyReports() {
   const [reports, setReports] = useState<LostItemSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -44,6 +46,18 @@ export function MyReports() {
     }
   }, [reload])
 
+  if (selectedReportId) {
+  return (
+    <LostItemDetailsView
+      key={selectedReportId}
+      reportId={selectedReportId}
+      onBack={() => setSelectedReportId(null)}
+    />
+  )
+}
+
+
+
   return (
     <section>
       <h2>My Reports</h2>
@@ -74,14 +88,24 @@ export function MyReports() {
           }}
         >
           {reports.map((report) => (
-            <ItemCard
-              key={report.id}
-              title={report.title}
-              category={report.category}
-              status={report.status}
-              date={report.date_lost}
-            />
-          ))}
+  <div key={report.id}>
+    <ItemCard
+      title={report.title}
+      category={report.category}
+      status={report.status}
+      date={report.date_lost}
+    />
+
+    <button
+      type="button"
+      onClick={() => setSelectedReportId(report.id)}
+      aria-label={`View details for ${report.title}`}
+      style={{ padding: '10px 16px', marginTop: '10px' }}
+    >
+      View details
+    </button>
+  </div>
+))}
         </div>
       )}
     </section>

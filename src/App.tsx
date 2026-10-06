@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   UserCheck,
 } from 'lucide-react'
+import { MyReports } from './components/items/MyReports'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 type AppScreen = 'splash' | 'main'
@@ -50,6 +51,7 @@ const mockNotifications: AppNotification[] = [
 export default function App() {
   return (
     <AuthProvider>
+      
       <MainAppFlow />
     </AuthProvider>
   )
@@ -260,11 +262,15 @@ function Dashboard() {
 
         {/* Dashboard Content Panes */}
         <div className="dashboard-content">
+          
+
           {activeTab === 'profile' || activeTab === 'settings' ? (
             <ProfileView />
           ) : activeTab === 'users' ? (
-            <AdminUsersView />
-          ) : (
+  <AdminUsersView />
+                ) : activeTab === 'reports' ? (
+                     <MyReports />
+                ) : (
             <>
               {/* Hero Section */}
               <section className="dashboard-hero" id="dashboard-hero-section">

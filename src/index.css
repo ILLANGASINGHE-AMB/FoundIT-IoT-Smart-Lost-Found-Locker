@@ -2741,3 +2741,126 @@ html, body {
 }
 
 
+
+
+/* status badge */
+
+
+.item-status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.item-status-lost {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.item-status-found {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.item-status-resolved,
+.item-status-returned {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.item-status-cancelled,
+.item-status-closed {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.item-status-unclaimed_expired {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+/* item card*/
+
+
+.item-card {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+}
+
+.item-card-image,
+.item-card-placeholder {
+  display: block;
+  width: 100%;
+  height: 180px;
+}
+
+.item-card-image {
+  object-fit: cover;
+}
+
+.item-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.item-card-body {
+  padding: 20px;
+}
+
+.item-card-title {
+  margin: 12px 0 8px;
+  font-size: 20px;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+.item-card-category,
+.item-card-date {
+  margin: 6px 0;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+
+/*  filter inside reports*/
+
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.report-filters button {
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  cursor: pointer;
+}
+
+.report-filters button[aria-pressed="true"] {
+  background: #1e293b;
+  border-color: #1e293b;
+  color: #fff;
+}
+
+.report-filters button:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}

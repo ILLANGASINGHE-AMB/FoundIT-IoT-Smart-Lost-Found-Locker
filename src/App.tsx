@@ -24,6 +24,7 @@ import {
   UserCheck,
 } from 'lucide-react'
 import { MyReports } from './components/items/MyReports'
+import { LostItemForm } from './components/items/LostItemForm'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 type AppScreen = 'splash' | 'main'
@@ -268,9 +269,11 @@ function Dashboard() {
             <ProfileView />
           ) : activeTab === 'users' ? (
   <AdminUsersView />
-                ) : activeTab === 'reports' ? (
-                     <MyReports />
-                ) : (
+               ) : activeTab === 'reports' ? (
+                          <MyReports />
+                        ) : activeTab === 'report' ? (
+                          <LostItemForm />
+                        ) : (
             <>
               {/* Hero Section */}
               <section className="dashboard-hero" id="dashboard-hero-section">

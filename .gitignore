@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# Local backend dependencies and secrets
+server/node_modules/
+server/.env

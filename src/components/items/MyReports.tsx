@@ -1,58 +1,88 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ItemCard } from './ItemCard'
-
-type ReportFilter = 'ALL' | 'LOST' | 'FOUND'
+import { getLostItems } from '../../services/lostItems'
+import type { LostItemSummary } from '../../services/lostItems'
 
 export function MyReports() {
-  const [filter, setFilter] = useState<ReportFilter>('ALL')
+  const [reports, setReports] = useState<LostItemSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [reload, setReload] = useState(0)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadReports() {
+      setLoading(true)
+      setError('')
+
+      try {
+        const data = await getLostItems()
+
+        if (active) {
+          setReports(data)
+        }
+      } catch (error) {
+        if (active) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : 'Could not load reports'
+          )
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadReports()
+
+    return () => {
+      active = false
+    }
+  }, [reload])
 
   return (
-    <section aria-labelledby="my-reports-heading">
-      <h1 id="my-reports-heading">My Reports</h1>
-      <p>Sample reports — database connection coming later.</p>
+    <section>
+      <h2>My Reports</h2>
+      <p>Lost reports saved by the local test user.</p>
 
-      <div className="report-filters" aria-label="Report type filters">
-        <button
-          type="button"
-          aria-pressed={filter === 'ALL'}
-          onClick={() => setFilter('ALL')}
-        >
-          All
-        </button>
+      <button
+        type="button"
+        onClick={() => setReload((value) => value + 1)}
+        disabled={loading}
+        style={{ padding: '10px 16px', margin: '16px 0' }}
+      >
+        {loading ? 'Loading...' : 'Refresh reports'}
+      </button>
 
-        <button
-          type="button"
-          aria-pressed={filter === 'LOST'}
-          onClick={() => setFilter('LOST')}
-        >
-          Lost
-        </button>
+      {loading && <p role="status">Loading your reports...</p>}
+      {error && <p role="alert">{error}</p>}
 
-        <button
-          type="button"
-          aria-pressed={filter === 'FOUND'}
-          onClick={() => setFilter('FOUND')}
-        >
-          Found
-        </button>
-      </div>
-
-      {(filter === 'ALL' || filter === 'LOST') && (
-        <ItemCard
-          title="Lost Samsung phone"
-          category="Electronics"
-          status="LOST"
-          date="2026-10-04"
-        />
+      {!loading && !error && reports.length === 0 && (
+        <p>No lost reports yet. Use Report to create one.</p>
       )}
 
-      {(filter === 'ALL' || filter === 'FOUND') && (
-        <ItemCard
-          title="Found a bunch of keys"
-          category="Keys"
-          status="FOUND"
-          date="2026-10-04"
-        />
+      {!loading && !error && reports.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '20px',
+          }}
+        >
+          {reports.map((report) => (
+            <ItemCard
+              key={report.id}
+              title={report.title}
+              category={report.category}
+              status={report.status}
+              date={report.date_lost}
+            />
+          ))}
+        </div>
       )}
     </section>
   )

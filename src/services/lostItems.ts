@@ -32,6 +32,7 @@ export type LostItemSummary = {
   date_lost: string
   category: string
   location: string
+   created_at: string
 }
 
 export async function getLostItems(): Promise<LostItemSummary[]> {
@@ -69,6 +70,28 @@ export async function getLostItemById(
         ? 'Report not found'
         : 'Could not load report details'
     )
+  }
+
+  return response.json()
+}
+
+export type CancelLostItemResult = {
+  id: string
+  status: 'CANCELLED'
+  updated_at: string
+}
+
+export async function cancelLostItem(
+  id: string
+): Promise<CancelLostItemResult> {
+  const response = await fetch(
+    `http://127.0.0.1:3001/api/lost-items/${encodeURIComponent(id)}/cancel`,
+    { method: 'PATCH' }
+  )
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.message || 'Could not cancel the report')
   }
 
   return response.json()

@@ -24,7 +24,7 @@ import {
   UserCheck,
 } from 'lucide-react'
 import { MyReports } from './components/items/MyReports'
-import { LostItemForm } from './components/items/LostItemForm'
+import { ReportItemView } from './components/items/ReportItemView'
 
 // ─── Types ────────────────────────────────────────────────────────────────
 type AppScreen = 'splash' | 'main'
@@ -272,7 +272,7 @@ function Dashboard() {
                ) : activeTab === 'reports' ? (
                           <MyReports />
                         ) : activeTab === 'report' ? (
-                          <LostItemForm />
+                          <ReportItemView />
                         ) : (
             <>
               {/* Hero Section */}

@@ -1,15 +1,33 @@
 import { useEffect, useState } from 'react'
 import { ItemCard } from './ItemCard'
-import { getLostItems } from '../../services/lostItems'
-import type { LostItemSummary } from '../../services/lostItems'
 import { LostItemDetailsView } from './LostItemDetailsView'
+import { getLostItems } from '../../services/lostItems'
+import { getFoundItems } from '../../services/foundItems'
+import type { ItemStatus } from './StatusBadge'
+import { FoundItemDetailsView } from './FoundItemDetailsView'
+
+type ReportFilter = 'ALL' | 'LOST' | 'FOUND'
+
+type ReportSummary = {
+  id: string
+  kind: 'LOST' | 'FOUND'
+  title: string
+  category: string
+  status: ItemStatus
+  date: string
+  created_at: string
+}
 
 export function MyReports() {
-  const [reports, setReports] = useState<LostItemSummary[]>([])
+  const [reports, setReports] = useState<ReportSummary[]>([])
+  const [filter, setFilter] = useState<ReportFilter>('ALL')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
+  const [selectedReport, setSelectedReport] = useState<{
+  id: string
+  kind: 'LOST' | 'FOUND'
+} | null>(null)
 
   useEffect(() => {
     let active = true
@@ -19,11 +37,39 @@ export function MyReports() {
       setError('')
 
       try {
-        const data = await getLostItems()
+        const [lostItems, foundItems] = await Promise.all([
+          getLostItems(),
+          getFoundItems(),
+        ])
 
-        if (active) {
-          setReports(data)
-        }
+        const combined: ReportSummary[] = [
+          ...lostItems.map((item): ReportSummary => ({
+            id: item.id,
+            kind: 'LOST',
+            title: item.title,
+            category: item.category,
+            status: item.status,
+            date: item.date_lost,
+            created_at: item.created_at,
+          })),
+          ...foundItems.map((item): ReportSummary => ({
+            id: item.id,
+            kind: 'FOUND',
+            title: item.title,
+            category: item.category,
+            status: item.status,
+            date: item.date_found,
+            created_at: item.created_at,
+          })),
+        ]
+
+        combined.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+        )
+
+        if (active) setReports(combined)
       } catch (error) {
         if (active) {
           setError(
@@ -33,9 +79,7 @@ export function MyReports() {
           )
         }
       } finally {
-        if (active) {
-          setLoading(false)
-        }
+        if (active) setLoading(false)
       }
     }
 
@@ -46,22 +90,48 @@ export function MyReports() {
     }
   }, [reload])
 
-  if (selectedReportId) {
-  return (
+ if (selectedReport) {
+  const handleBack = () => {
+    setSelectedReport(null)
+    setReload((value) => value + 1)
+  }
+
+  return selectedReport.kind === 'LOST' ? (
     <LostItemDetailsView
-      key={selectedReportId}
-      reportId={selectedReportId}
-      onBack={() => setSelectedReportId(null)}
+      key={selectedReport.id}
+      reportId={selectedReport.id}
+      onBack={handleBack}
+    />
+  ) : (
+    <FoundItemDetailsView
+      key={selectedReport.id}
+      reportId={selectedReport.id}
+      onBack={handleBack}
     />
   )
 }
 
-
+  const visibleReports = reports.filter(
+    (report) => filter === 'ALL' || report.kind === filter
+  )
 
   return (
     <section>
       <h2>My Reports</h2>
-      <p>Lost reports saved by the local test user.</p>
+      <p>Lost and found reports saved by the local test user.</p>
+
+      < div className="report-filters">
+        {(['ALL', 'LOST', 'FOUND'] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={filter === option}
+            onClick={() => setFilter(option)}
+          >
+            {option === 'ALL' ? 'All' : option === 'LOST' ? 'Lost' : 'Found'}
+          </button>
+        ))}
+      </div>
 
       <button
         type="button"
@@ -75,11 +145,11 @@ export function MyReports() {
       {loading && <p role="status">Loading your reports...</p>}
       {error && <p role="alert">{error}</p>}
 
-      {!loading && !error && reports.length === 0 && (
-        <p>No lost reports yet. Use Report to create one.</p>
+      {!loading && !error && visibleReports.length === 0 && (
+        <p>No reports in this category yet.</p>
       )}
 
-      {!loading && !error && reports.length > 0 && (
+      {!loading && !error && visibleReports.length > 0 && (
         <div
           style={{
             display: 'grid',
@@ -87,25 +157,31 @@ export function MyReports() {
             gap: '20px',
           }}
         >
-          {reports.map((report) => (
-  <div key={report.id}>
-    <ItemCard
-      title={report.title}
-      category={report.category}
-      status={report.status}
-      date={report.date_lost}
-    />
+          {visibleReports.map((report) => (
+            <div key={`${report.kind}-${report.id}`}>
+              <ItemCard
+                title={report.title}
+                category={report.category}
+                status={report.status}
+                date={report.date}
+              />
 
-    <button
-      type="button"
-      onClick={() => setSelectedReportId(report.id)}
-      aria-label={`View details for ${report.title}`}
-      style={{ padding: '10px 16px', marginTop: '10px' }}
-    >
-      View details
-    </button>
-  </div>
-))}
+              <button
+              type="button"
+              onClick={() =>
+                setSelectedReport({
+                  id: report.id,
+                  kind: report.kind,
+                })
+              }
+              aria-label={`View details for ${report.title}`}
+              style={{ padding: '10px 16px', marginTop: '10px' }}
+            >
+              View details
+            </button>
+              
+            </div>
+          ))}
         </div>
       )}
     </section>

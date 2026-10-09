@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import {getLostItemById, cancelLostItem,} from '../../services/lostItems'
-import type { LostItemDetails } from '../../services/lostItems'
+import { getFoundItemById } from '../../services/foundItems'
+import type { FoundItemDetails } from '../../services/foundItems'
 import { StatusBadge } from './StatusBadge'
 
 type Props = {
@@ -8,12 +8,10 @@ type Props = {
   onBack: () => void
 }
 
-export function LostItemDetailsView({ reportId, onBack }: Props) {
-  const [report, setReport] = useState<LostItemDetails | null>(null)
+export function FoundItemDetailsView({ reportId, onBack }: Props) {
+  const [report, setReport] = useState<FoundItemDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [cancelling, setCancelling] = useState(false)
-  const [cancelError, setCancelError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -24,7 +22,7 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
       setReport(null)
 
       try {
-        const data = await getLostItemById(reportId)
+        const data = await getFoundItemById(reportId)
 
         if (active) setReport(data)
       } catch (error) {
@@ -32,7 +30,7 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
           setError(
             error instanceof Error
               ? error.message
-              : 'Could not load report details'
+              : 'Could not load found report details'
           )
         }
       } finally {
@@ -47,47 +45,11 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
     }
   }, [reportId])
 
-   async function handleCancel() {
-  if (!report || cancelling) return
-
-  const confirmed = window.confirm(
-    'Cancel this lost report? Its status will change to CANCELLED.'
-  )
-
-  if (!confirmed) return
-
-  setCancelling(true)
-  setCancelError('')
-
-  try {
-    const result = await cancelLostItem(report.id)
-
-    setReport((current) =>
-      current
-        ? {
-            ...current,
-            status: result.status,
-            updated_at: result.updated_at,
-          }
-        : current
-    )
-  } catch (error) {
-    setCancelError(
-      error instanceof Error
-        ? error.message
-        : 'Could not cancel the report'
-    )
-  } finally {
-    setCancelling(false)
-  }
-}
-
   return (
     <section>
       <button
         type="button"
         onClick={onBack}
-        disabled={cancelling}
         style={{ padding: '10px 16px', marginBottom: '20px' }}
       >
         Back to My Reports
@@ -101,29 +63,9 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
           <h2>{report.title}</h2>
           <StatusBadge status={report.status} />
 
-
-          {report.status === 'LOST' && (
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={cancelling}
-                style={{
-                  display: 'block',
-                  marginTop: '16px',
-                  padding: '10px 16px',
-                }}
-              >
-                {cancelling ? 'Cancelling...' : 'Cancel report'}
-              </button>
-            )}
-
-            {cancelError && <p role="alert">{cancelError}</p>}
-
-
-
           <p><strong>Category:</strong> {report.category}</p>
-          <p><strong>Last seen location:</strong> {report.location}</p>
-          <p><strong>Date lost:</strong> {report.date_lost}</p>
+          <p><strong>Found location:</strong> {report.location}</p>
+          <p><strong>Date found:</strong> {report.date_found}</p>
 
           <h3>Description</h3>
           <p style={{ whiteSpace: 'pre-wrap' }}>{report.description}</p>

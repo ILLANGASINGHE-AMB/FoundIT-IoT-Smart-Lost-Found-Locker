@@ -860,6 +860,91 @@ app.get('/api/images/:imageId', async (req, res) => {
 })
 
 
+app.delete('/api/images/:imageId', async (req, res) => {
+  if (
+    process.env.LOCAL_DEMO_MODE !== 'true' ||
+    process.env.NODE_ENV === 'production'
+  ) {
+    return res.status(403).json({
+      message: 'Local demo mode is disabled',
+    })
+  }
+
+  const userId = z.uuid().safeParse(process.env.DEV_USER_ID)
+  const imageId = z.uuid().safeParse(req.params.imageId)
+
+  if (!userId.success) {
+    return res.status(500).json({
+      message: 'The local test user is not configured',
+    })
+  }
+
+  if (!imageId.success) {
+    return res.status(400).json({
+      message: 'Invalid photo ID',
+    })
+  }
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM public.item_images AS img
+       WHERE img.id = $1
+         AND (
+           EXISTS (
+             SELECT 1
+             FROM public.lost_items AS li
+             WHERE li.id = img.lost_item_id
+               AND li.user_id = $2
+               AND li.status = 'LOST'
+           )
+           OR EXISTS (
+             SELECT 1
+             FROM public.found_items AS fi
+             WHERE fi.id = img.found_item_id
+               AND fi.finder_id = $2
+               AND fi.status = 'FOUND'
+           )
+         )
+       RETURNING img.storage_path`,
+      [imageId.data, userId.data]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({
+        message: 'Photo is unavailable or the report no longer allows changes',
+      })
+    }
+
+    const filename = result.rows[0].storage_path
+
+    // Only remove files with our generated filename format.
+    if (/^[0-9a-f-]{36}\.webp$/i.test(filename)) {
+      try {
+        await fs.unlink(path.join(uploadsDirectory, filename))
+      } catch (error) {
+        // A file that is already missing needs no further removal.
+        if (error.code !== 'ENOENT') {
+          console.error(
+            'Photo record removed, but file cleanup failed:',
+            filename,
+            error.message
+          )
+        }
+      }
+    } else {
+      console.error('Skipped cleanup for unexpected photo filename')
+    }
+
+    return res.status(204).send()
+  } catch (error) {
+    console.error('Could not remove photo:', error.message)
+
+    return res.status(500).json({
+      message: 'Could not remove the photo',
+    })
+  }
+})
+
 const port = Number(process.env.PORT || 3001)
 
 app.listen(port, '127.0.0.1', () => {

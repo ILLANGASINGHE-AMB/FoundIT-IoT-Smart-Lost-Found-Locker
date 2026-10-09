@@ -91,6 +91,7 @@ export function FoundItemDetailsView({ reportId, onBack }: Props) {
                 kind="found-items"
                 reportId={report.id}
                 refreshKey={photoRefresh}
+                  canRemove={report.status === 'FOUND'}
               />
 
               <ItemImageUploader

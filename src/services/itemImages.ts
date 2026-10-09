@@ -47,3 +47,15 @@ export async function getItemImages(
     url: `http://127.0.0.1:3001${photo.url}`,
   }))
 }
+
+export async function deleteItemPhoto(imageId: string): Promise<void> {
+  const response = await fetch(
+    `http://127.0.0.1:3001/api/images/${encodeURIComponent(imageId)}`,
+    { method: 'DELETE' }
+  )
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.message || 'Could not remove the photo')
+  }
+} 

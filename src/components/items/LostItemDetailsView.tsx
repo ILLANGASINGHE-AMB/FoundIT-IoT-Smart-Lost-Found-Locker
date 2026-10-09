@@ -149,6 +149,7 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
   kind="lost-items"
   reportId={report.id}
   refreshKey={photoRefresh}
+   canRemove={report.status === 'LOST'}
 />
 
 {report.status === 'LOST' && (

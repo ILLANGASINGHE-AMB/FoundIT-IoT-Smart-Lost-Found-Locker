@@ -31,6 +31,7 @@ export type FoundItemSummary = {
   created_at: string
   category: string
   location: string
+  image_id: string | null
 }
 
 export async function getFoundItems(): Promise<FoundItemSummary[]> {
@@ -43,7 +44,7 @@ export async function getFoundItems(): Promise<FoundItemSummary[]> {
   return response.json()
 }
 
-export type FoundItemDetails = FoundItemSummary & {
+export type FoundItemDetails = Omit<FoundItemSummary, 'image_id'> & {
   description: string
   brand: string | null
   model: string | null
@@ -51,6 +52,7 @@ export type FoundItemDetails = FoundItemSummary & {
   category_id: string
   location_id: string
   updated_at: string
+  image_id: string | null
 }
 
 export async function getFoundItemById(

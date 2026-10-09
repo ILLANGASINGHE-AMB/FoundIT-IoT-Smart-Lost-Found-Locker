@@ -33,6 +33,7 @@ export type LostItemSummary = {
   category: string
   location: string
    created_at: string
+   image_id: string | null
 }
 
 export async function getLostItems(): Promise<LostItemSummary[]> {
@@ -46,7 +47,7 @@ export async function getLostItems(): Promise<LostItemSummary[]> {
 }
 
 
-export type LostItemDetails = LostItemSummary & {
+export type LostItemDetails = Omit<LostItemSummary, 'image_id'> & {
   description: string
   brand: string | null
   model: string | null
@@ -55,6 +56,7 @@ export type LostItemDetails = LostItemSummary & {
   location_id: string
   created_at: string
   updated_at: string
+  
 }
 
 export async function getLostItemById(

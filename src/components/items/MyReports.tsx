@@ -16,6 +16,7 @@ type ReportSummary = {
   status: ItemStatus
   date: string
   created_at: string
+  imageUrl: string | undefined
 }
 
 export function MyReports() {
@@ -51,6 +52,9 @@ export function MyReports() {
             status: item.status,
             date: item.date_lost,
             created_at: item.created_at,
+            imageUrl: item.image_id
+  ? `http://127.0.0.1:3001/api/images/${item.image_id}`
+  : undefined,
           })),
           ...foundItems.map((item): ReportSummary => ({
             id: item.id,
@@ -60,6 +64,9 @@ export function MyReports() {
             status: item.status,
             date: item.date_found,
             created_at: item.created_at,
+            imageUrl: item.image_id
+  ? `http://127.0.0.1:3001/api/images/${item.image_id}`
+  : undefined,
           })),
         ]
 
@@ -164,6 +171,7 @@ export function MyReports() {
                 category={report.category}
                 status={report.status}
                 date={report.date}
+                 imageUrl={report.imageUrl}
               />
 
               <button

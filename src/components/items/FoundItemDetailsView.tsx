@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { getFoundItemById } from '../../services/foundItems'
 import type { FoundItemDetails } from '../../services/foundItems'
 import { StatusBadge } from './StatusBadge'
+import { ItemImageUploader } from './ItemImageUploader'
+import { ItemImageGallery } from './ItemImageGallery'
 
 type Props = {
   reportId: string
@@ -12,6 +14,7 @@ export function FoundItemDetailsView({ reportId, onBack }: Props) {
   const [report, setReport] = useState<FoundItemDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [photoRefresh, setPhotoRefresh] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -82,6 +85,21 @@ export function FoundItemDetailsView({ reportId, onBack }: Props) {
             <strong>Last updated:</strong>{' '}
             {new Date(report.updated_at).toLocaleString()}
           </p>
+          {report.status === 'FOUND' && (
+            <>
+              <ItemImageGallery
+                kind="found-items"
+                reportId={report.id}
+                refreshKey={photoRefresh}
+              />
+
+              <ItemImageUploader
+                kind="found-items"
+                reportId={report.id}
+                onUploaded={() => setPhotoRefresh((value) => value + 1)}
+              />
+            </>
+          )}
         </article>
       )}
     </section>

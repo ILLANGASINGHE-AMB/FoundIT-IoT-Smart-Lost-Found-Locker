@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import {getLostItemById, cancelLostItem,} from '../../services/lostItems'
 import type { LostItemDetails } from '../../services/lostItems'
 import { StatusBadge } from './StatusBadge'
+import { ItemImageUploader } from './ItemImageUploader'
+import { ItemImageGallery } from './ItemImageGallery'
+
 
 type Props = {
   reportId: string
@@ -14,6 +17,7 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
+  const [photoRefresh, setPhotoRefresh] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -140,6 +144,20 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
             <strong>Last updated:</strong>{' '}
             {new Date(report.updated_at).toLocaleString()}
           </p>
+
+ <ItemImageGallery
+  kind="lost-items"
+  reportId={report.id}
+  refreshKey={photoRefresh}
+/>
+
+{report.status === 'LOST' && (
+  <ItemImageUploader
+    kind="lost-items"
+    reportId={report.id}
+    onUploaded={() => setPhotoRefresh((value) => value + 1)}
+  />
+)}
         </article>
       )}
     </section>

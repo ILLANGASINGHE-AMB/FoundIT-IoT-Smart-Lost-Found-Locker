@@ -1,4 +1,5 @@
 require('dotenv').config()
+const { generateClaimCode } = require('./utils/claimCodes.cjs')
 
 const express = require('express')
 const cors = require('cors')
@@ -91,7 +92,8 @@ const lostItemSchema = z.object({
 })
 
 app.post('/api/lost-items', async (req, res) => {
-  // Temporary local testing only.
+  res.set('Cache-Control', 'no-store')
+
   if (
     process.env.LOCAL_DEMO_MODE !== 'true' ||
     process.env.NODE_ENV === 'production'
@@ -122,15 +124,32 @@ app.post('/api/lost-items', async (req, res) => {
   }
 
   const item = parsed.data
+  let client
+  let transactionStarted = false
+  let discardClient = false
+  let report
+  let claimCode
 
   try {
-    const result = await pool.query(
+    const generated = generateClaimCode()
+    claimCode = generated.claimCode
+
+    client = await pool.connect()
+
+    await client.query('BEGIN')
+    transactionStarted = true
+
+    const result = await client.query(
       `INSERT INTO public.lost_items (
-        user_id, title, description,
-        category_id, location_id, date_lost
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, title, status`,
+         user_id,
+         title,
+         description,
+         category_id,
+         location_id,
+         date_lost
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, title, status`,
       [
         userId.data,
         item.title,
@@ -141,20 +160,50 @@ app.post('/api/lost-items', async (req, res) => {
       ]
     )
 
-    return res.status(201).json(result.rows[0])
+    report = result.rows[0]
+
+    await client.query(
+      `INSERT INTO foundit_private.lost_item_claim_codes (
+         lost_item_id,
+         code_hash,
+         hash_version
+       )
+       VALUES ($1, $2, $3)`,
+      [report.id, generated.codeHash, generated.hashVersion]
+    )
+
+    await client.query('COMMIT')
+    transactionStarted = false
   } catch (error) {
+    if (client && transactionStarted) {
+      try {
+        await client.query('ROLLBACK')
+      } catch {
+        discardClient = true
+        console.error('Could not roll back lost-report creation')
+      }
+    }
+
+    // Log an error code only, not report data or secrets.
+    console.error('Lost-report creation failed:', error.code || 'UNKNOWN')
+
     if (error.code === '23503') {
       return res.status(400).json({
         message: 'Choose an existing category and location',
       })
     }
 
-    console.error('Could not save lost report:', error.message)
-
     return res.status(500).json({
-      message: 'Could not save the report',
+      message: 'Could not save the lost report',
     })
+  } finally {
+    if (client) client.release(discardClient)
   }
+
+  return res.status(201).json({
+    ...report,
+    claim_code: claimCode,
+  })
 })
 
 

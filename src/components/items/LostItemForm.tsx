@@ -17,6 +17,7 @@ export function LostItemForm() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [success, setSuccess] = useState('')
+  const [claimCode, setClaimCode] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -67,13 +68,14 @@ export function LostItemForm() {
   setSaving(true)
 
   try {
-    await createLostItem({
+    const result = await createLostItem({
       title: title.trim(),
       description: description.trim(),
       category_id: categoryId,
       location_id: locationId,
       date_lost: dateLost,
     })
+    setClaimCode(result.claim_code)
 
     setSuccess('Your lost report was saved successfully.')
     setTitle('')
@@ -90,6 +92,65 @@ export function LostItemForm() {
   }
 }
 
+if (claimCode) {
+  return (
+    <section style={{ maxWidth: '640px' }}>
+      <h2>Lost report saved</h2>
+
+      <p>
+        Save this claim code. You will need it to verify your claim
+        when a possible match is found.
+      </p>
+
+      <label htmlFor="new-claim-code">Your private claim code</label>
+
+      <input
+        id="new-claim-code"
+        type="text"
+        value={claimCode}
+        readOnly
+        spellCheck={false}
+        autoComplete="off"
+        onFocus={(event) => event.currentTarget.select()}
+        style={{
+          display: 'block',
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '12px',
+          margin: '12px 0',
+          fontFamily: 'monospace',
+        }}
+      />
+
+      <p>
+        Click the code to select it, then press Ctrl + C to copy.
+        Save it somewhere private.
+      </p>
+
+      <p>
+        This code cannot be retrieved from your report later.
+        Leaving this page or refreshing may lose this display.
+      </p>
+
+      <button
+        type="button"
+        onClick={() => {
+          const confirmed = window.confirm(
+            'Have you saved your claim code? Closing this display will hide it.'
+          )
+
+          if (confirmed) {
+            setClaimCode(null)
+            setSuccess('')
+          }
+        }}
+        style={{ padding: '12px 16px' }}
+      >
+        I have saved my code
+      </button>
+    </section>
+  )
+}
 
 
 

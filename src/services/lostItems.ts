@@ -6,7 +6,14 @@ export type CreateLostItemInput = {
   date_lost: string
 }
 
-export async function createLostItem(input: CreateLostItemInput) {
+export type CreateLostItemResult = {
+  id: string
+  title: string
+  status: 'LOST'
+  claim_code: string
+}
+
+export async function createLostItem(input: CreateLostItemInput): Promise<CreateLostItemResult> {
   const response = await fetch('http://127.0.0.1:3001/api/lost-items', {
     method: 'POST',
     headers: {

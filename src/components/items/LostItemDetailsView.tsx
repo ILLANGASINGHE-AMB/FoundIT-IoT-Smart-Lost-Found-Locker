@@ -4,6 +4,7 @@ import type { LostItemDetails } from '../../services/lostItems'
 import { StatusBadge } from './StatusBadge'
 import { ItemImageUploader } from './ItemImageUploader'
 import { ItemImageGallery } from './ItemImageGallery'
+import { EditLostItemForm } from './EditLostItemForm'
 
 
 type Props = {
@@ -18,6 +19,8 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
   const [photoRefresh, setPhotoRefresh] = useState(0)
+  const [editing, setEditing] = useState(false)
+const [detailsReload, setDetailsReload] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -49,7 +52,7 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
     return () => {
       active = false
     }
-  }, [reportId])
+  }, [reportId, detailsReload])
 
    async function handleCancel() {
   if (!report || cancelling) return
@@ -86,6 +89,21 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
   }
 }
 
+
+if (editing && report && report.status === 'LOST') {
+  return (
+    <EditLostItemForm
+      key={report.id}
+      report={report}
+      onCancel={() => setEditing(false)}
+      onSaved={() => {
+        setEditing(false)
+        setDetailsReload((value) => value + 1)
+      }}
+    />
+  )
+}
+
   return (
     <section>
       <button
@@ -104,6 +122,20 @@ export function LostItemDetailsView({ reportId, onBack }: Props) {
         <article style={{ maxWidth: '640px', overflowWrap: 'anywhere' }}>
           <h2>{report.title}</h2>
           <StatusBadge status={report.status} />
+          {report.status === 'LOST' && (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  disabled={cancelling}
+                  style={{
+                    display: 'block',
+                    marginTop: '16px',
+                    padding: '10px 16px',
+                  }}
+                >
+                  Edit report
+                </button>
+              )}
 
 
           {report.status === 'LOST' && (

@@ -105,3 +105,25 @@ export async function cancelLostItem(
 
   return response.json()
 }
+
+
+export async function updateLostItem(
+  id: string,
+  input: CreateLostItemInput
+): Promise<void> {
+  const response = await fetch(
+    `http://127.0.0.1:3001/api/lost-items/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null)
+    throw new Error(error?.message || 'Could not update the report')
+  }
+}

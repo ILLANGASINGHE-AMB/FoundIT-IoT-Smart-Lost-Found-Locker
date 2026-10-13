@@ -994,6 +994,90 @@ app.delete('/api/images/:imageId', async (req, res) => {
   }
 })
 
+app.patch('/api/lost-items/:id', async (req, res) => {
+  if (
+    process.env.LOCAL_DEMO_MODE !== 'true' ||
+    process.env.NODE_ENV === 'production'
+  ) {
+    return res.status(403).json({
+      message: 'Local demo mode is disabled',
+    })
+  }
+
+  const userId = z.uuid().safeParse(process.env.DEV_USER_ID)
+  const itemId = z.uuid().safeParse(req.params.id)
+
+  if (!userId.success) {
+    return res.status(500).json({
+      message: 'The local test user is not configured',
+    })
+  }
+
+  if (!itemId.success) {
+    return res.status(400).json({
+      message: 'Invalid report ID',
+    })
+  }
+
+  const parsed = lostItemSchema.safeParse(req.body)
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      message: 'Please check your report fields',
+      errors: parsed.error.issues.map((issue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
+      })),
+    })
+  }
+
+  const item = parsed.data
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.lost_items
+       SET title = $1,
+           description = $2,
+           category_id = $3,
+           location_id = $4,
+           date_lost = $5
+       WHERE id = $6
+         AND user_id = $7
+         AND status = 'LOST'
+       RETURNING id, title, status, updated_at`,
+      [
+        item.title,
+        item.description,
+        item.category_id,
+        item.location_id,
+        item.date_lost,
+        itemId.data,
+        userId.data,
+      ]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({
+        message: 'This report is unavailable or is no longer LOST',
+      })
+    }
+
+    return res.json(result.rows[0])
+  } catch (error) {
+    if (error.code === '23503') {
+      return res.status(400).json({
+        message: 'Choose an existing category and location',
+      })
+    }
+
+    console.error('Could not update report:', error.code || 'UNKNOWN')
+
+    return res.status(500).json({
+      message: 'Could not update the report',
+    })
+  }
+})
+
 const port = Number(process.env.PORT || 3001)
 
 app.listen(port, '127.0.0.1', () => {

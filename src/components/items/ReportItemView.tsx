@@ -2,8 +2,14 @@ import { useState } from 'react'
 import { LostItemForm } from './LostItemForm'
 import { FoundItemForm } from './FoundItemForm'
 
-export function ReportItemView() {
-  const [reportType, setReportType] = useState<'lost' | 'found'>('lost')
+type Props = {
+  initialType?: 'lost' | 'found'
+}
+
+export function ReportItemView({ initialType = 'lost' }: Props) {
+  const [reportType, setReportType] = useState<'lost' | 'found'>(
+    initialType
+  )
 
   return (
     <section>

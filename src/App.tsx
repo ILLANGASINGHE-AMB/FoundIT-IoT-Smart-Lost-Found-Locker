@@ -268,12 +268,14 @@ function Dashboard() {
           {activeTab === 'profile' || activeTab === 'settings' ? (
             <ProfileView />
           ) : activeTab === 'users' ? (
-  <AdminUsersView />
-               ) : activeTab === 'reports' ? (
-                          <MyReports />
-                        ) : activeTab === 'report' ? (
-                          <ReportItemView />
-                        ) : (
+              <AdminUsersView />
+              ) : activeTab === 'reports' ? (
+                    <MyReports />
+           ) : activeTab === 'report' ? (
+              <ReportItemView key="report-lost" initialType="lost" />
+           ) : activeTab === 'find' ? (
+              <ReportItemView key="report-found" initialType="found" />
+           ) : (
             <>
               {/* Hero Section */}
               <section className="dashboard-hero" id="dashboard-hero-section">

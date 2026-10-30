@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { LocalDbService } from '../../services/localDb'
 import type { UserProfile, UserRole } from '../../types/auth'
-import { Trash2, Edit2, ShieldCheck, User as UserIcon, UserCheck } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 
 export function AdminUsersView() {
   const [users, setUsers] = useState<UserProfile[]>([])

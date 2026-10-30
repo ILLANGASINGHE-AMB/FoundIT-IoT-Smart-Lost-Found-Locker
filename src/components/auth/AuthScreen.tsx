@@ -15,7 +15,7 @@ import {
   ArrowLeft,
   Sparkles,
   ChevronRight,
-  Shield,
+ 
   RotateCcw,
   Eye,
   EyeOff,

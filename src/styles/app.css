@@ -287,10 +287,12 @@ a.sidebar-nav-item {
   }
 
   .stat-card {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 10px;
-    padding: 14px;
+    padding: 12px;
+  }
+
+  .stat-info {
+    min-width: 0;
   }
 
   .stat-icon {
@@ -310,6 +312,7 @@ a.sidebar-nav-item {
 
   .stat-label {
     font-size: 12px;
+    line-height: 1.25;
   }
 
   /* FoundIT Box cards */
@@ -344,6 +347,12 @@ a.sidebar-nav-item {
 
   .profile-name-heading {
     font-size: 1.4rem;
+  }
+
+  .profile-title-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
   }
 
   .profile-tabs-nav {

@@ -19,7 +19,7 @@ Functions) · Google Gemini embeddings · Vercel hosting.
 | M2: Lost & Found Item Management | `Lost-&-Found-Management` | ✅ Implemented |
 | M3: Matching Engine (Gemini) | `Matching-Engine` | ✅ Implemented |
 | M4: Claims, Collection & QR | `Claims-Collection-QR` | ✅ Implemented |
-| M5: Admin Dashboard & Notifications | `Admin-&-Notifications` | ⏳ Placeholder routes |
+| M5: Admin Dashboard & Notifications | `Admin-&-Notifications` | ✅ Implemented |
 
 Each module branch builds on the one before it
 (`Auth → Lost & Found → Matching → Claims → Admin`). This means every branch
@@ -183,6 +183,60 @@ an Edge Function.
   and a precached app shell so the QR landing and auth pages open offline.
   An "Add to Home Screen" prompt appears on mobile after a scan.
 
+## What's in this branch (M5: Admin Dashboard & Notifications)
+
+This branch contains **the complete app**: all five modules merged together.
+
+- **Notifications** (spec §32–33):
+  - The `notify-user` Edge Function, which only other functions can call
+    (service role), inserts an `IN_APP` row and, for critical events, sends
+    an email through **Resend**. Critical events are: possible match found,
+    claim approved or rejected, item ready for collection, item collected,
+    and credential reset.
+  - `<NotificationBell>` in the top bar shows a live unread badge
+    (Supabase Realtime) and a preview of the latest 3. A toast appears when
+    a notification arrives, and related screens refresh.
+  - `/notifications` has paging, filters by type and unread, and mark
+    as read / mark all as read.
+- **User dashboard:** summary cards for lost items, open matches, active
+  claims and items found (from the `user_dashboard_stats()` RPC), a
+  "ready for collection" banner, the last 5 notifications, quick actions,
+  and the FoundIT Boxes.
+- **Admin console** (`/admin`, lazy-loaded; tabs on desktop, hamburger menu
+  on mobile):
+  - **Overview:** recovery-rate KPI, "needs attention" alerts (locked,
+    pending and ready-to-collect claims), counts, and a live activity feed
+    (Realtime on `audit_logs`).
+  - **Claims:** status tabs and a review screen showing both items side by
+    side, the owner's private detail next to the claimant's answer, the
+    attempts log and the score breakdown. Actions are approve (with
+    collection point), reject or revoke, and complete collection (officer
+    only: credential or audited manual override).
+  - **Matches:** every candidate with its breakdown. Actions are dismiss,
+    convert to claim (opened on the owner's behalf), and override status.
+  - **Items:** lost and found tabs, filters (status, category, location,
+    date range, search), bulk status changes (`admin_set_item_status()`,
+    audited), and an "Expire overdue items" button.
+  - **Collection points:** add, edit, deactivate; **generate QR**
+    (SVG download and print); rotate QR (a new nanoid slug, after which
+    old prints stop working); turn the QR on or off.
+  - **Users:** search, role, collection-officer flag.
+  - **Analytics** (Recharts): lost vs found over time, monthly recovery
+    rate, items by category, items by location, claim-status distribution,
+    and KPI cards. Every chart has a table view. The colour palette was
+    checked for colour-blind safety.
+- **Unclaimed expiry:** `expire_unclaimed_items()` marks found items past
+  `retention_expires_at` (90 days by default) as `UNCLAIMED_EXPIRED`,
+  dismisses their open candidates, logs `EXPIRED_UNCLAIMED_ITEM`, and
+  notifies admins. **pg_cron** runs it daily at 00:00 UTC. Admins can also
+  run it from the `expire-unclaimed-items` function.
+- **RLS:** users read and mark only their own notifications and can never
+  create them. Audit logs are readable by admins only and are never
+  writable from the client.
+
+`foundit - Copy.zip` (the original UI snapshot committed to this branch) is
+kept unchanged.
+
 ## Local development
 
 ```bash
@@ -220,12 +274,23 @@ npm run dev                    # http://localhost:5173
    supabase secrets set \
      IDENTIFIER_HMAC_SECRET="$(openssl rand -hex 32)" \
      CLAIM_CODE_SECRET="$(openssl rand -hex 32)" \
-     GEMINI_API_KEY="<key from https://aistudio.google.com/apikey>"
-   # optional: GEMINI_EMBEDDING_MODEL (default gemini-embedding-001)
+     GEMINI_API_KEY="<key from https://aistudio.google.com/apikey>" \
+     RESEND_API_KEY="<key from https://resend.com>" \
+     EMAIL_FROM="FoundIT <noreply@your-verified-domain>" \
+     APP_URL="https://<your-app>.vercel.app"
+   # optional: GEMINI_EMBEDDING_MODEL (default gemini-embedding-001),
+   #           ALLOWED_ORIGIN (CORS, default *)
    supabase functions deploy
    ```
-   Keep these secrets stable. Rotating them invalidates the stored
-   identifier and claim-code hashes.
+   Keep `IDENTIFIER_HMAC_SECRET` and `CLAIM_CODE_SECRET` stable: rotating
+   them invalidates the stored identifier and claim-code hashes. Without
+   `RESEND_API_KEY`, notifications are in-app only. Without
+   `GEMINI_API_KEY`, matching falls back to text similarity.
+   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided to Edge
+   Functions automatically.
+   pg_cron is enabled by the M5 migration. If your project refuses it, turn
+   on **Database → Extensions → pg_cron** and run
+   `select cron.schedule('foundit-expire-unclaimed-items', '0 0 * * *', 'select public.expire_unclaimed_items()');`
 6. Optional: enable the Google provider under **Auth → Providers**, then set
    `VITE_ENABLE_GOOGLE_AUTH=true`.
 

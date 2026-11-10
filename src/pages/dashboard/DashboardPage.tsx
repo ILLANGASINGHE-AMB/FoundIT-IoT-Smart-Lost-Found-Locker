@@ -1,10 +1,43 @@
-import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, Clock, MapPin, PackageSearch, Phone } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  AlertTriangle,
+  ClipboardCheck,
+  Clock,
+  FileSearch,
+  MapPin,
+  PackageCheck,
+  PackageSearch,
+  Phone,
+  Sparkles,
+} from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { useRecentNotifications } from '../../hooks/useNotifications'
 import { supabase } from '../../lib/supabase'
-import { Skeleton } from '../../components/ui'
-import type { CollectionPoint } from '../../types'
+import { markAsRead } from '../../services/notifications'
+import { EmptyState, Skeleton } from '../../components/ui'
+import { NotificationItem } from '../../components/notifications/NotificationItem'
+import type { AppNotification, CollectionPoint } from '../../types'
+
+interface UserStats {
+  lost_items: number
+  found_items: number
+  open_matches: number
+  active_claims: number
+  ready_to_collect: number
+  unread_notifications: number
+}
+
+function useUserStats() {
+  return useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('user_dashboard_stats')
+      if (error) throw new Error('Could not load your summary.')
+      return data as UserStats
+    },
+  })
+}
 
 function useCollectionPoints() {
   return useQuery({
@@ -104,10 +137,88 @@ export function CollectionPointsSection() {
   )
 }
 
+function SummaryCards() {
+  const { data: stats, isLoading } = useUserStats()
+  const cards = [
+    { to: '/lost', label: 'Lost Items', value: stats?.lost_items, icon: <FileSearch size={22} />, tone: 'stat-icon-orange' },
+    { to: '/matches', label: 'Open Matches', value: stats?.open_matches, icon: <Sparkles size={22} />, tone: 'stat-icon-purple' },
+    { to: '/claims', label: 'Active Claims', value: stats?.active_claims, icon: <ClipboardCheck size={22} />, tone: 'stat-icon-blue' },
+    { to: '/found', label: 'Items You Found', value: stats?.found_items, icon: <PackageSearch size={22} />, tone: 'stat-icon-green' },
+  ]
+
+  return (
+    <>
+      {stats && stats.ready_to_collect > 0 && (
+        <Link to="/claims" className="alert alert-success ready-banner">
+          <PackageCheck size={18} />
+          <span>
+            <strong>{stats.ready_to_collect} item(s) ready for collection!</strong> Bring your claim credential to the
+            FoundIT Box.
+          </span>
+        </Link>
+      )}
+      <section className="dashboard-stats" aria-label="Your summary">
+        {cards.map((c) => (
+          <Link key={c.to} to={c.to} className="stat-card stat-card-link">
+            <div className={`stat-icon ${c.tone}`}>{c.icon}</div>
+            <div className="stat-info">
+              <span className="stat-value">{isLoading ? <Skeleton width={36} height={24} /> : (c.value ?? 0)}</span>
+              <span className="stat-label">{c.label}</span>
+            </div>
+          </Link>
+        ))}
+      </section>
+    </>
+  )
+}
+
+function RecentNotifications() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { data, isLoading } = useRecentNotifications(5)
+
+  const open = async (n: AppNotification) => {
+    if (!n.is_read) {
+      await markAsRead(n.id).catch(() => undefined)
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    }
+    if (n.link) navigate(n.link)
+  }
+
+  return (
+    <section className="stack">
+      <div className="row-between">
+        <div className="section-header">
+          <h2 className="section-title">Recent Notifications</h2>
+          <p className="section-caption">Stay updated on your matches and claims</p>
+        </div>
+        <Link to="/notifications" className="btn btn-ghost btn-sm">
+          View all
+        </Link>
+      </div>
+      {isLoading && <Skeleton height={180} radius={16} />}
+      {data && data.length === 0 && (
+        <div className="card">
+          <EmptyState title="Nothing yet" description="We’ll let you know here as soon as something happens." />
+        </div>
+      )}
+      {data && data.length > 0 && (
+        <div className="card notification-list">
+          {data.map((n) => (
+            <NotificationItem key={n.id} notification={n} onOpen={open} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function DashboardPage() {
   return (
     <div className="page">
       <DashboardHero />
+      <SummaryCards />
+      <RecentNotifications />
       <CollectionPointsSection />
     </div>
   )

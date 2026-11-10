@@ -23,9 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
+# Local env files
+.env
+.env.*
+!.env.example
 
-# Local backend dependencies and secrets
-server/node_modules/
-server/.env
-# Locally uploaded report photos
-server/uploads/
+# Supabase local
+supabase/.branches
+supabase/.temp

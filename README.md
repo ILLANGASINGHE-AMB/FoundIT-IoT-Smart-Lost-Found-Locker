@@ -31,7 +31,7 @@ runs end-to-end, and `Admin-&-Notifications` contains the complete app.
 - `supabase/migrations/…_foundation.sql` creates **every table** in the data
   model, turns RLS on everywhere (deny-all by default), and adds the shared
   helpers `is_admin()` / `is_collection_officer()`.
-- `supabase/seed.sql` adds the demo categories, campus locations and three
+- `supabase/seed.sql` adds the starter categories, campus locations and three
   FoundIT Box collection points.
 - `src/types` holds the shared TypeScript row types and status enums.
 - `src/lib/supabase.ts` is the typed Supabase client.
@@ -237,34 +237,6 @@ This branch contains **the complete app**: all five modules merged together.
 `foundit - Copy.zip` (the original UI snapshot committed to this branch) is
 kept unchanged.
 
-## Demo mode (try it without Supabase)
-
-Run `npm install && npm run dev` with **no** Supabase variables set (or
-`VITE_DEMO_MODE=true`), and the whole system runs inside the browser.
-`src/lib/demo/` stands in for the Supabase client, with the same `from`,
-`rpc`, `auth`, `storage`, `functions` and `channel` API, and stores
-everything in localStorage and IndexedDB. It includes JavaScript ports of
-the RLS policies, the SQL functions and every Edge Function, so the pages
-run unchanged.
-
-| Account | Password | Role |
-|---|---|---|
-| `alex@foundit.demo` | `Demo@1234` | User: lost a calculator and has an open match |
-| `sam@foundit.demo` | `Demo@1234` | User: the finder |
-| `admin@foundit.demo` | `Admin@1234` | Admin and collection officer |
-
-Try the claim flow as Alex: open **Matches → Start claim**, answer
-*"scratch beside the AC button"*, and enter the credential
-`FND-7K4P-92XQ-M3TA`. Then sign in as admin to approve the claim and
-complete the collection with the same code. Scan
-`http://localhost:5173/q/lib-7k4p92` to see the QR landing page.
-
-Limitations: there's no Gemini offline, so matching uses the lexical
-fallback. Password-reset "emails" appear as an on-screen toast. Data lives
-only in this browser; the **Reset demo data** button in the banner wipes
-it. Use a private window to be signed in as two users at once. Demo mode
-is not secure and is meant for local testing only.
-
 ## Local development
 
 ```bash
@@ -288,7 +260,7 @@ npm run dev                    # http://localhost:5173
    supabase link --project-ref <your-project-ref>
    supabase db push                 # applies supabase/migrations/*
    ```
-   Then run `supabase/seed.sql` once in **SQL Editor** to load the demo data.
+   Then run `supabase/seed.sql` once in **SQL Editor** to load the starter data.
 3. Under **Auth → URL Configuration**, set **Site URL** to your Vercel URL
    and add `https://<your-app>.vercel.app/**` and
    `http://localhost:5173/**` to **Redirect URLs**.

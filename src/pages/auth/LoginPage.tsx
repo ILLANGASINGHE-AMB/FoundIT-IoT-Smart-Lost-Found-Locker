@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
-import { Mail, ShieldCheck, User } from 'lucide-react'
+import { Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { signIn, signInWithGoogle } from '../../services/auth'
 import { friendlyError } from '../../lib/errors'
@@ -11,8 +11,6 @@ import { safeRedirect } from '../../lib/redirect'
 import { AuthLayout, GoogleButton, googleAuthEnabled } from './AuthLayout'
 import { PasswordInput } from './PasswordInput'
 import { loginSchema } from './schemas'
-import { isDemoMode } from '../../lib/supabase'
-import { DEMO_ACCOUNTS } from '../../lib/demo/seed'
 
 type LoginValues = z.infer<typeof loginSchema>
 
@@ -26,7 +24,6 @@ export function LoginPage() {
     register,
     handleSubmit,
     watch,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema) })
 
@@ -53,28 +50,6 @@ export function LoginPage() {
       }
       error={error}
     >
-      {isDemoMode && (
-        <div className="demo-accounts-bar">
-          <span className="demo-label">Quick Test Accounts (demo mode):</span>
-          <div className="demo-buttons-group">
-            {DEMO_ACCOUNTS.map((a) => (
-              <button
-                key={a.email}
-                type="button"
-                className={`demo-chip ${a.role === 'admin' ? 'chip-admin' : 'chip-member'}`}
-                title={a.note}
-                onClick={() => {
-                  setValue('email', a.email, { shouldValidate: true })
-                  setValue('password', a.password, { shouldValidate: true })
-                }}
-              >
-                {a.role === 'admin' ? <ShieldCheck size={13} /> : <User size={13} />} {a.name.split(' ')[0]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {googleAuthEnabled && (
         <>
           <GoogleButton

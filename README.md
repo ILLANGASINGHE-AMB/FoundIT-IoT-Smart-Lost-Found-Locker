@@ -85,7 +85,8 @@ npm run dev                    # http://localhost:5173
    ```
    Then run `supabase/seed.sql` once in **SQL Editor** to load the demo data.
 3. Under **Auth → URL Configuration**, set **Site URL** to your Vercel URL
-   and add `https://<your-app>.vercel.app/**` and
+   and add your exact production URL `https://<your-app>.vercel.app/**` (never a
+   bare `https://*.vercel.app/**` wildcard) and
    `http://localhost:5173/**` to **Redirect URLs**.
 4. Make yourself an admin (SQL Editor):
    ```sql

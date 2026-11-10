@@ -1955,6 +1955,17 @@ fieldset {
 
 /* ── Notifications & dashboard (M5) ─────────────────────── */
 
+/* Section heading + "View all" on one line. */
+.row-between > .section-header {
+  margin-bottom: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.row-between > .section-header + .btn {
+  flex-shrink: 0;
+}
+
 .notification-bell {
   position: relative;
 }
@@ -2131,6 +2142,70 @@ fieldset {
 }
 
 /* ── Admin (M5) ─────────────────────────────────────────── */
+
+.filter-toggle {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .hero-kpi {
+    padding: 18px;
+  }
+
+  .hero-kpi-value {
+    font-size: 2.4rem;
+  }
+
+  /* Filters collapse behind a toggle so results are visible first. */
+  .filter-toggle {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+
+  .filter-bar:not(.open) {
+    display: none;
+  }
+
+  .bulk-bar .select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.data-table .cell-value {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@media (max-width: 640px) {
+  .data-table.stack-mobile td[data-label] .cell-value {
+    align-items: flex-end;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  /* Selection checkbox sits in the card's top-right corner. */
+  .data-table.stack-mobile tr.has-check {
+    position: relative;
+  }
+
+  .data-table.stack-mobile td.cell-check {
+    position: absolute;
+    top: 10px;
+    right: 6px;
+    padding: 4px 8px;
+  }
+
+  .data-table.stack-mobile tr.has-check td.cell-title {
+    padding-right: 44px;
+  }
+}
 
 .admin-shell {
   display: flex;
@@ -2497,14 +2572,47 @@ fieldset {
   white-space: nowrap;
 }
 
+.demo-banner-short {
+  display: none;
+}
+
 @media (max-width: 767px) {
+  /* Compact chip above the tab bar; content gets room so nothing hides. */
   .demo-banner {
+    left: auto;
+    right: 12px;
+    transform: none;
     bottom: calc(var(--bottom-bar-height) + 10px + env(safe-area-inset-bottom));
+    padding: 5px 6px 5px 10px;
+    gap: 6px;
+    opacity: 0.94;
   }
 
-  .demo-banner > span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .demo-banner-text {
+    display: none;
+  }
+
+  .demo-banner-short {
+    display: inline;
+    font-weight: 700;
+  }
+
+  .demo-banner button {
+    padding: 4px 8px;
+  }
+
+  .demo-banner-reset-label {
+    display: none;
+  }
+
+  body.demo-mode .dashboard-content {
+    padding-bottom: 64px;
+  }
+
+  /* Pages without the tab bar (auth, QR landing): top-right corner, clear
+     of the primary buttons at the bottom of the form. */
+  body.demo-mode:not(:has(.bottom-tab-bar)) .demo-banner {
+    top: calc(12px + env(safe-area-inset-top));
+    bottom: auto;
   }
 }

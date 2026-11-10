@@ -20,7 +20,11 @@ export function DemoBanner() {
       })
     }
     window.addEventListener('foundit-demo-email', onEmail)
-    return () => window.removeEventListener('foundit-demo-email', onEmail)
+    document.body.classList.add('demo-mode')
+    return () => {
+      window.removeEventListener('foundit-demo-email', onEmail)
+      document.body.classList.remove('demo-mode')
+    }
   }, [])
 
   const reset = async () => {
@@ -33,11 +37,14 @@ export function DemoBanner() {
   return (
     <div className="demo-banner" role="status">
       <FlaskConical size={14} />
-      <span>
+      <span className="demo-banner-text">
         <strong>Demo mode</strong> — data is stored only in this browser (no Supabase connected).
       </span>
-      <button type="button" onClick={reset} disabled={busy}>
-        <RotateCcw size={12} /> Reset demo data
+      <span className="demo-banner-short" title="Demo mode — data is stored only in this browser">
+        Demo
+      </span>
+      <button type="button" onClick={reset} disabled={busy} aria-label="Reset demo data" title="Reset demo data">
+        <RotateCcw size={12} /> <span className="demo-banner-reset-label">Reset demo data</span>
       </button>
     </div>
   )

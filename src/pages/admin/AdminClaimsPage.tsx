@@ -51,7 +51,7 @@ export function AdminClaimsPage() {
 
       {query.data && query.data.length > 0 && (
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table stack-mobile">
             <thead>
               <tr>
                 <th>Item</th>
@@ -70,19 +70,23 @@ export function AdminClaimsPage() {
                   onClick={() => navigate(`/admin/claims/${c.id}`)}
                   onKeyDown={(e) => e.key === 'Enter' && navigate(`/admin/claims/${c.id}`)}
                 >
-                  <td>
-                    <strong>{c.lost_item?.title}</strong>
-                    <div className="muted small">Found: {c.found_item?.title}</div>
+                  <td className="cell-title">
+                    <span className="cell-value">
+                      <strong>{c.lost_item?.title}</strong>
+                      <span className="muted small">Found: {c.found_item?.title}</span>
+                    </span>
                   </td>
-                  <td className="small">
-                    {c.claimant?.full_name}
-                    <div className="muted">{c.claimant?.email}</div>
+                  <td className="small" data-label="Claimant">
+                    <span className="cell-value">
+                      {c.claimant?.full_name}
+                      <span className="muted">{c.claimant?.email}</span>
+                    </span>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <ClaimStatusBadge claim={c} />
                   </td>
-                  <td className="small">{c.collection_point?.name ?? '—'}</td>
-                  <td className="small">{formatDateTime(c.submitted_at)}</td>
+                  <td className="small" data-label="Collect at">{c.collection_point?.name ?? '—'}</td>
+                  <td className="small" data-label="Submitted">{formatDateTime(c.submitted_at)}</td>
                 </tr>
               ))}
             </tbody>

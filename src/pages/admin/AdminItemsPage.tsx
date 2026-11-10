@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Search, TimerOff } from 'lucide-react'
+import { Search, SlidersHorizontal, TimerOff } from 'lucide-react'
 import { bulkUpdateItemStatus, expireItems, listItems, type AdminItemKind } from '../../services/admin'
 import { useCategories, useLocations } from '../../hooks/useLookups'
 import { formatDate } from '../../lib/format'
@@ -26,6 +26,7 @@ export function AdminItemsPage() {
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkStatus, setBulkStatus] = useState('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const { data: categories } = useCategories()
   const { data: locations } = useLocations()
 
@@ -96,7 +97,18 @@ export function AdminItemsPage() {
         </button>
       </div>
 
-      <div className="card filter-bar">
+      <button
+        type="button"
+        className="btn btn-secondary filter-toggle"
+        aria-expanded={filtersOpen}
+        onClick={() => setFiltersOpen((o) => !o)}
+      >
+        <SlidersHorizontal size={16} /> Filters
+        {[status, categoryId, locationId, from, to, search].filter(Boolean).length > 0 &&
+          ` (${[status, categoryId, locationId, from, to, search].filter(Boolean).length})`}
+      </button>
+
+      <div className={`card filter-bar ${filtersOpen ? 'open' : ''}`}>
         <div className="input-with-icon">
           <Search size={16} />
           <input
@@ -182,7 +194,7 @@ export function AdminItemsPage() {
 
       {rows.length > 0 && (
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table stack-mobile">
             <thead>
               <tr>
                 <th>
@@ -204,8 +216,8 @@ export function AdminItemsPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>
+                <tr key={r.id} className="has-check">
+                  <td className="cell-check">
                     <input
                       type="checkbox"
                       checked={selected.has(r.id)}
@@ -218,22 +230,28 @@ export function AdminItemsPage() {
                       }}
                     />
                   </td>
-                  <td>
+                  <td className="cell-title">
                     <Link to={`/${tab}/${r.id}`} className="table-link">
                       {r.title}
                     </Link>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <StatusBadge status={r.status} />
                   </td>
-                  <td>{r.category?.name}</td>
-                  <td>{r.location?.name}</td>
-                  <td>{formatDate(r.date)}</td>
-                  <td className="small">
-                    {r.owner?.full_name}
-                    <div className="muted">{r.owner?.email}</div>
+                  <td data-label="Category">{r.category?.name}</td>
+                  <td data-label="Location">{r.location?.name}</td>
+                  <td data-label={tab === 'lost' ? 'Date lost' : 'Date found'}>{formatDate(r.date)}</td>
+                  <td className="small" data-label={tab === 'lost' ? 'Owner' : 'Finder'}>
+                    <span className="cell-value">
+                      {r.owner?.full_name}
+                      <span className="muted">{r.owner?.email}</span>
+                    </span>
                   </td>
-                  {tab === 'found' && <td className="small">{formatDate(r.retention_expires_at)}</td>}
+                  {tab === 'found' && (
+                    <td className="small" data-label="Retention">
+                      {formatDate(r.retention_expires_at)}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

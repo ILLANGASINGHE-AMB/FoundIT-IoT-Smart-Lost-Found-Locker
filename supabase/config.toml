@@ -38,6 +38,28 @@ additional_redirect_urls = [
 ]
 jwt_expiry = 3600
 enable_signup = true
+# Server-side password policy (mirrors src/pages/auth/schemas.ts). Without
+# this, anyone calling the Auth API directly can bypass the client checks.
+minimum_password_length = 8
+password_requirements = "lower_upper_letters_digits"
+
+[auth.rate_limit]
+# Per-IP limits, per hour unless noted, to slow brute force and email abuse.
+email_sent = 4            # auth emails (verify / reset) per hour, project-wide
+sms_sent = 30
+sign_in_sign_ups = 30     # sign-in / sign-up attempts per 5 min per IP
+token_verifications = 30  # OTP / magic-link verifications per 5 min per IP
+token_refresh = 150       # per 5 min per IP
+anonymous_users = 30
+
+# CAPTCHA is off because the client does not send a captchaToken yet.
+# To enable: add the Cloudflare Turnstile widget to the login, register and
+# forgot-password pages, pass options.captchaToken to the Supabase calls,
+# then set enabled = true and provide TURNSTILE_SECRET.
+[auth.captcha]
+enabled = false
+provider = "turnstile"
+secret = "env(TURNSTILE_SECRET)"
 
 [auth.email]
 enable_signup = true

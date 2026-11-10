@@ -95,7 +95,7 @@ export function AdminUsersPage() {
 
       {query.data && query.data.rows.length > 0 && (
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table stack-mobile">
             <thead>
               <tr>
                 <th>User</th>
@@ -110,7 +110,7 @@ export function AdminUsersPage() {
                 const busy = mutation.isPending && mutation.variables?.id === u.id
                 return (
                   <tr key={u.id}>
-                    <td>
+                    <td className="cell-title">
                       <div className="row" style={{ flexWrap: 'nowrap' }}>
                         <Avatar src={u.profile_image} name={u.full_name} size={34} />
                         <div>
@@ -121,8 +121,8 @@ export function AdminUsersPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="muted">{formatDate(u.created_at)}</td>
-                    <td>
+                    <td className="muted" data-label="Joined">{formatDate(u.created_at)}</td>
+                    <td data-label="Role">
                       <select
                         className="select"
                         style={{ minWidth: 130 }}
@@ -135,7 +135,7 @@ export function AdminUsersPage() {
                         <option value="admin">Admin</option>
                       </select>
                     </td>
-                    <td>
+                    <td data-label="Officer">
                       <label className="checkbox-row">
                         <input
                           type="checkbox"

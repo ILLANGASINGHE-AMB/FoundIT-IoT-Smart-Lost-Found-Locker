@@ -16,7 +16,7 @@ Functions) · Google Gemini embeddings · Vercel hosting.
 | Module | Branch | Status |
 |---|---|---|
 | M1: Authentication & User Profiles (+ Phase 0 foundation) | `Auth-&-Profiles` | ✅ Implemented |
-| M2: Lost & Found Item Management | `Lost-&-Found-Management` | ⏳ Placeholder routes |
+| M2: Lost & Found Item Management | `Lost-&-Found-Management` | ✅ Implemented |
 | M3: Matching Engine (Gemini) | `Matching-Engine` | ⏳ Placeholder routes |
 | M4: Claims, Collection & QR | `Claims-Collection-QR` | ⏳ Placeholder routes |
 | M5: Admin Dashboard & Notifications | `Admin-&-Notifications` | ⏳ Placeholder routes |
@@ -60,6 +60,42 @@ runs end-to-end, and `Admin-&-Notifications` contains the complete app.
 
 ---
 
+## What's in this branch (M2: Lost & Found Item Management)
+
+- **Report lost / found item** (`/lost/new`, `/found/new`): a three-step
+  wizard (basic info → details → photos & privacy) with Zod validation.
+  Fields: category, title, brand, model, colour, optional unique
+  identifier, description, date, location (from the controlled
+  `locations` list) and photos. Lost reports also take **private
+  ownership information**.
+- **Edge Functions** `create-lost-item` and `create-found-item`:
+  - The identifier is stored as `HMAC-SHA256(IDENTIFIER_HMAC_SECRET, TYPE:VALUE)`
+    (spec §13). The raw value is never stored.
+  - Lost reports get a claim credential `FND-XXXX-XXXX-XXXX`. Only its HMAC is
+    stored (in `lost_item_secrets`, which clients cannot read at all), and the
+    plain code is shown **once** in `<ClaimCredentialModal>`.
+  - Found items handed in at a FoundIT Box start as `IN_STORAGE`. The
+    collection point can be pre-filled through
+    `/found/new?collection_point_id=…&location_id=…` (used by the QR flow).
+  - After saving, both functions call the Matching Engine (`find-matches`)
+    in the background.
+- **Photos** go to a private `item-images` Storage bucket
+  (`lost/{id}/…`, `found/{id}/…`). The bucket enforces JPEG/PNG/WebP and
+  5 MB server-side, and the client validates the same rules. The limit is
+  10 photos per report. Photos are shown through signed URLs. On mobile you
+  can take a photo directly (`capture="environment"`).
+- **My Lost Items / My Found Items** lists with status filters, detail pages
+  with image gallery, status timeline, edit and cancel actions.
+- **RLS:** a lost report and its private info are visible only to the owner
+  and admins. A found report is visible to its finder, admins, and owners
+  of a lost item the matching engine paired with it. Owners can edit only
+  while a report is active and can only *cancel* (triggers enforce this).
+
+Hirushan's Express/PostgreSQL prototype (`server/`, `database/local/`) was
+ported to Supabase. Its table design, validation rules, transactional
+claim-code creation and photo-upload-with-retry flow carry over into the
+migration, the Edge Functions and the new report form.
+
 ## Local development
 
 ```bash
@@ -92,7 +128,16 @@ npm run dev                    # http://localhost:5173
    update public.profiles set role = 'admin', is_collection_officer = true
    where email = 'you@example.com';
    ```
-5. Optional: enable the Google provider under **Auth → Providers**, then set
+5. Set the Edge Function secrets and deploy the functions:
+   ```bash
+   supabase secrets set \
+     IDENTIFIER_HMAC_SECRET="$(openssl rand -hex 32)" \
+     CLAIM_CODE_SECRET="$(openssl rand -hex 32)"
+   supabase functions deploy
+   ```
+   Keep these secrets stable. Rotating them invalidates the stored
+   identifier and claim-code hashes.
+6. Optional: enable the Google provider under **Auth → Providers**, then set
    `VITE_ENABLE_GOOGLE_AUTH=true`.
 
 ## Deploy (Vercel)

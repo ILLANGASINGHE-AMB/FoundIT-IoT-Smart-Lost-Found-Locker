@@ -9,6 +9,11 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage'
 import { DashboardPage } from './pages/dashboard/DashboardPage'
 import { ProfilePage } from './pages/profile/ProfilePage'
 import { AdminUsersPage } from './pages/admin/AdminUsersPage'
+import { ItemsListPage } from './pages/items/ItemsListPage'
+import { ReportItemPage } from './pages/items/ReportItemPage'
+import { LostItemDetailPage } from './pages/items/LostItemDetailPage'
+import { FoundItemDetailPage } from './pages/items/FoundItemDetailPage'
+import { ItemEditPage } from './pages/items/ItemEditPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
@@ -35,12 +40,14 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
 
           {/* M2 — Lost & Found Item Management */}
-          <Route path="/lost" element={<PlaceholderPage title="My Lost Items" module="Lost & Found (M2)" />} />
-          <Route path="/lost/new" element={<PlaceholderPage title="Report Lost Item" module="Lost & Found (M2)" />} />
-          <Route path="/lost/:id" element={<PlaceholderPage title="Lost Item" module="Lost & Found (M2)" />} />
-          <Route path="/found" element={<PlaceholderPage title="My Found Items" module="Lost & Found (M2)" />} />
-          <Route path="/found/new" element={<PlaceholderPage title="Report Found Item" module="Lost & Found (M2)" />} />
-          <Route path="/found/:id" element={<PlaceholderPage title="Found Item" module="Lost & Found (M2)" />} />
+          <Route path="/lost" element={<ItemsListPage key="lost" kind="lost" />} />
+          <Route path="/lost/new" element={<ReportItemPage key="lost" kind="lost" />} />
+          <Route path="/lost/:id" element={<LostItemDetailPage />} />
+          <Route path="/lost/:id/edit" element={<ItemEditPage key="lost" kind="lost" />} />
+          <Route path="/found" element={<ItemsListPage key="found" kind="found" />} />
+          <Route path="/found/new" element={<ReportItemPage key="found" kind="found" />} />
+          <Route path="/found/:id" element={<FoundItemDetailPage />} />
+          <Route path="/found/:id/edit" element={<ItemEditPage key="found" kind="found" />} />
 
           {/* M3 — Matching Engine */}
           <Route path="/matches" element={<PlaceholderPage title="My Matches" module="Matching Engine (M3)" />} />

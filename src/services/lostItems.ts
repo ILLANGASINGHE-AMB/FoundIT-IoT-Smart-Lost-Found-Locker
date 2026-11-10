@@ -1,129 +1,92 @@
-export type CreateLostItemInput = {
+import { supabase } from '../lib/supabase'
+import { invokeEdge } from '../lib/errors'
+import type { LostItem, LostItemStatus } from '../types'
+
+export interface LostItemInput {
   title: string
   description: string
   category_id: string
   location_id: string
   date_lost: string
+  brand?: string | null
+  model?: string | null
+  color?: string | null
+  identifier_type?: string | null
+  identifier_value?: string | null
+  private_ownership_info?: string | null
 }
 
-export type CreateLostItemResult = {
+export interface CreateLostItemResult {
   id: string
   title: string
-  status: 'LOST'
+  status: LostItemStatus
+  created_at: string
+  /** Shown to the user exactly once — never stored in plain text. */
   claim_code: string
 }
 
-export async function createLostItem(input: CreateLostItemInput): Promise<CreateLostItemResult> {
-  const response = await fetch('http://127.0.0.1:3001/api/lost-items', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(input),
-  })
+/** Goes through the Edge Function: identifiers are HMAC'd and the claim code issued server-side. */
+export function createLostItem(input: LostItemInput): Promise<CreateLostItemResult> {
+  return invokeEdge<CreateLostItemResult>('create-lost-item', { ...input })
+}
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => null)
-    throw new Error(error?.message || 'Could not save the report')
+export type LostItemWithLookups = LostItem & {
+  category: { name: string } | null
+  location: { name: string } | null
+}
+
+const withLookups = '*, category:categories(name), location:locations(name)'
+
+export async function getLostItems(status?: LostItemStatus | 'ALL'): Promise<LostItemWithLookups[]> {
+  const { data: auth } = await supabase.auth.getUser()
+  let query = supabase
+    .from('lost_items')
+    .select(withLookups)
+    .eq('user_id', auth.user?.id ?? '')
+    .order('created_at', { ascending: false })
+  if (status && status !== 'ALL') query = query.eq('status', status)
+  const { data, error } = await query
+  if (error) throw new Error('Could not load your lost reports.')
+  return data as LostItemWithLookups[]
+}
+
+export async function getLostItemById(id: string): Promise<LostItemWithLookups> {
+  const { data, error } = await supabase.from('lost_items').select(withLookups).eq('id', id).maybeSingle()
+  if (error) throw new Error('Could not load the report.')
+  if (!data) throw new Error('Report not found.')
+  return data as LostItemWithLookups
+}
+
+/** Owner (or admin) only — RLS returns nothing for anyone else. */
+export async function getLostItemPrivateInfo(id: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('lost_item_private')
+    .select('private_ownership_info')
+    .eq('lost_item_id', id)
+    .maybeSingle()
+  return data?.private_ownership_info ?? null
+}
+
+export type LostItemUpdate = Pick<
+  LostItemInput,
+  'title' | 'description' | 'category_id' | 'location_id' | 'date_lost' | 'brand' | 'model' | 'color'
+> & { private_ownership_info?: string | null }
+
+export async function updateLostItem(id: string, input: LostItemUpdate): Promise<void> {
+  const { private_ownership_info, ...fields } = input
+  const { error } = await supabase.from('lost_items').update(fields).eq('id', id)
+  if (error) throw new Error(error.message.includes('no longer') ? error.message : 'Could not update the report.')
+
+  if (private_ownership_info !== undefined) {
+    const { error: privateError } = await supabase
+      .from('lost_item_private')
+      .update({ private_ownership_info: private_ownership_info || null })
+      .eq('lost_item_id', id)
+    if (privateError) throw new Error('Report saved, but the private details could not be updated.')
   }
-
-  return response.json()
 }
 
-
-
-export type LostItemSummary = {
-  id: string
-  title: string
-  status: 'LOST' | 'RESOLVED' | 'CANCELLED'
-  date_lost: string
-  category: string
-  location: string
-   created_at: string
-   image_id: string | null
-}
-
-export async function getLostItems(): Promise<LostItemSummary[]> {
-  const response = await fetch('http://127.0.0.1:3001/api/lost-items')
-
-  if (!response.ok) {
-    throw new Error('Could not load your lost reports')
-  }
-
-  return response.json()
-}
-
-
-export type LostItemDetails = Omit<LostItemSummary, 'image_id'> & {
-  description: string
-  brand: string | null
-  model: string | null
-  color: string | null
-  category_id: string
-  location_id: string
-  created_at: string
-  updated_at: string
-  
-}
-
-export async function getLostItemById(
-  id: string
-): Promise<LostItemDetails> {
-  const response = await fetch(
-    `http://127.0.0.1:3001/api/lost-items/${encodeURIComponent(id)}`
-  )
-
-  if (!response.ok) {
-    throw new Error(
-      response.status === 404
-        ? 'Report not found'
-        : 'Could not load report details'
-    )
-  }
-
-  return response.json()
-}
-
-export type CancelLostItemResult = {
-  id: string
-  status: 'CANCELLED'
-  updated_at: string
-}
-
-export async function cancelLostItem(
-  id: string
-): Promise<CancelLostItemResult> {
-  const response = await fetch(
-    `http://127.0.0.1:3001/api/lost-items/${encodeURIComponent(id)}/cancel`,
-    { method: 'PATCH' }
-  )
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => null)
-    throw new Error(error?.message || 'Could not cancel the report')
-  }
-
-  return response.json()
-}
-
-
-export async function updateLostItem(
-  id: string,
-  input: CreateLostItemInput
-): Promise<void> {
-  const response = await fetch(
-    `http://127.0.0.1:3001/api/lost-items/${encodeURIComponent(id)}`,
-    {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(input),
-    }
-  )
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => null)
-    throw new Error(error?.message || 'Could not update the report')
-  }
+export async function cancelLostItem(id: string): Promise<void> {
+  const { error } = await supabase.from('lost_items').update({ status: 'CANCELLED' }).eq('id', id)
+  if (error) throw new Error(error.message.includes('no longer') ? error.message : 'Could not cancel the report.')
 }

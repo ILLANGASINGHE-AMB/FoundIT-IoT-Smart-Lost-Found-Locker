@@ -17,7 +17,7 @@ Functions) · Google Gemini embeddings · Vercel hosting.
 |---|---|---|
 | M1: Authentication & User Profiles (+ Phase 0 foundation) | `Auth-&-Profiles` | ✅ Implemented |
 | M2: Lost & Found Item Management | `Lost-&-Found-Management` | ✅ Implemented |
-| M3: Matching Engine (Gemini) | `Matching-Engine` | ⏳ Placeholder routes |
+| M3: Matching Engine (Gemini) | `Matching-Engine` | ✅ Implemented |
 | M4: Claims, Collection & QR | `Claims-Collection-QR` | ⏳ Placeholder routes |
 | M5: Admin Dashboard & Notifications | `Admin-&-Notifications` | ⏳ Placeholder routes |
 
@@ -96,6 +96,49 @@ ported to Supabase. Its table design, validation rules, transactional
 claim-code creation and photo-upload-with-retry flow carry over into the
 migration, the Edge Functions and the new report form.
 
+## What's in this branch (M3: Matching Engine)
+
+- **Semantic matching with Google Gemini** (spec §18C). The
+  `generate-embedding` Edge Function embeds each report's title,
+  category, brand, model, colour and description with
+  `gemini-embedding-001` (task type `SEMANTIC_SIMILARITY`). The vector is
+  truncated to 768 dimensions, L2-normalised and stored in
+  `description_embedding` (pgvector, HNSW cosine index).
+- **Scoring** happens in Postgres (`score_match_pairs`, spec §19):
+
+  | Attribute | Weight | Method |
+  |---|---:|---|
+  | Category | 10 | exact `category_id` |
+  | Brand | 15 | `pg_trgm` similarity |
+  | Model | 15 | `pg_trgm` similarity |
+  | Colour | 10 | exact (0.5 if one contains the other) |
+  | Location | 20 | exact `location_id` |
+  | Date | 10 | full within 1 day, decays to 0 at 7 days |
+  | Description | 20 | 0.5 × trigram + 0.5 × Gemini similarity |
+
+  An exact identifier match (equal HMACs, spec §18A) scores **100**.
+  Gemini cosine similarity is rescaled (0.55 → 0, ≥ 0.90 → 1), because
+  unrelated texts still score around 0.5–0.6 raw. The raw value is kept in
+  `score_breakdown.semantic_similarity` for the UI.
+- **`find-matches`** runs after every new lost or found report and after
+  every edit. It stores candidates scoring ≥ 40% in `match_candidates`
+  (many-to-many, so identical items each get their own candidate, spec §21),
+  moves items to `MATCHED`, and notifies each lost item's owner (in-app,
+  plus email once M5 is deployed). If Gemini is unavailable, matching still
+  runs on the lexical signals.
+- **"Not my item"** calls the `dismiss_match()` RPC, which sets the
+  candidate to `DISMISSED` (it is never deleted) and reverts statuses when
+  no open candidates remain. Re-running matching never brings back a
+  dismissed candidate.
+- **UI:** `/matches` lists matches sorted by score with status filters.
+  `/matches/:id` shows your item and the found item side by side (stacked
+  on mobile, with the score banner at full width), a score ring, the
+  per-attribute breakdown with the method used, the "AI-matched on
+  meaning" badge, and **Start claim** / **Not my item** buttons. The
+  lost-item page lists its matches and has a "Check again" button.
+- **RLS:** a candidate is visible only to the lost item's owner and admins.
+  Only the engine (service role) can create candidates.
+
 ## Local development
 
 ```bash
@@ -132,7 +175,9 @@ npm run dev                    # http://localhost:5173
    ```bash
    supabase secrets set \
      IDENTIFIER_HMAC_SECRET="$(openssl rand -hex 32)" \
-     CLAIM_CODE_SECRET="$(openssl rand -hex 32)"
+     CLAIM_CODE_SECRET="$(openssl rand -hex 32)" \
+     GEMINI_API_KEY="<key from https://aistudio.google.com/apikey>"
+   # optional: GEMINI_EMBEDDING_MODEL (default gemini-embedding-001)
    supabase functions deploy
    ```
    Keep these secrets stable. Rotating them invalidates the stored

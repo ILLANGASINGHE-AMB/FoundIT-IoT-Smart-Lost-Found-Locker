@@ -14,6 +14,8 @@ import { ReportItemPage } from './pages/items/ReportItemPage'
 import { LostItemDetailPage } from './pages/items/LostItemDetailPage'
 import { FoundItemDetailPage } from './pages/items/FoundItemDetailPage'
 import { ItemEditPage } from './pages/items/ItemEditPage'
+import { MatchesPage } from './pages/matches/MatchesPage'
+import { MatchDetailPage } from './pages/matches/MatchDetailPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
@@ -50,8 +52,8 @@ export default function App() {
           <Route path="/found/:id/edit" element={<ItemEditPage key="found" kind="found" />} />
 
           {/* M3 — Matching Engine */}
-          <Route path="/matches" element={<PlaceholderPage title="My Matches" module="Matching Engine (M3)" />} />
-          <Route path="/matches/:id" element={<PlaceholderPage title="Match Detail" module="Matching Engine (M3)" />} />
+          <Route path="/matches" element={<MatchesPage />} />
+          <Route path="/matches/:id" element={<MatchDetailPage />} />
 
           {/* M4 — Claims, Collection & QR */}
           <Route path="/claims" element={<PlaceholderPage title="My Claims" module="Claims & QR (M4)" />} />

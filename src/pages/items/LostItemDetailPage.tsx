@@ -11,6 +11,7 @@ import { StatusBadge } from '../../components/items/StatusBadge'
 import { StatusTimeline } from '../../components/items/StatusTimeline'
 import { ItemImageGallery } from '../../components/items/ItemImageGallery'
 import { AddPhotos } from '../../components/items/AddPhotos'
+import { LostItemMatches } from '../../components/matching/LostItemMatches'
 import { IDENTIFIER_LABELS } from '../../components/items/itemSchemas'
 import type { IdentifierType } from '../../types'
 
@@ -169,6 +170,8 @@ export function LostItemDetailPage() {
               </p>
             </div>
           )}
+
+          {item.status !== 'CANCELLED' && <LostItemMatches lostItemId={item.id} canRematch={editable} />}
 
           <div className="card">
             <h2 className="card-title">Status</h2>

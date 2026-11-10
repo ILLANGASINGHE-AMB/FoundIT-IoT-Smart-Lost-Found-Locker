@@ -53,7 +53,7 @@ export function ScoreBreakdown({
         </div>
       )}
       <div className="table-wrap">
-        <table className="data-table breakdown-table">
+        <table className="data-table breakdown-table stack-mobile">
           <thead>
             <tr>
               <th>Attribute</th>
@@ -74,30 +74,37 @@ export function ScoreBreakdown({
                   : METHOD_LABEL[entry.method]
               return (
                 <tr key={row.key}>
-                  <th scope="row">{row.label}</th>
-                  <td>{row.lost}</td>
-                  <td>{row.found}</td>
-                  <td>
-                    <div className="breakdown-bar" aria-hidden="true">
-                      <span style={{ width: `${(entry.contribution / entry.weight) * 100}%` }} />
-                    </div>
-                    <span className="small">
+                  <th scope="row">
+                    <span>{row.label}</span>
+                    <span className="breakdown-points-mobile">
                       {entry.contribution.toFixed(1)} / {entry.weight}
                     </span>
+                  </th>
+                  <td data-label="Your item">{row.lost}</td>
+                  <td data-label="Found item">{row.found}</td>
+                  <td data-label="Points" className="breakdown-points">
+                    <span className="cell-value">
+                      <span className="breakdown-bar" aria-hidden="true">
+                        <span style={{ width: `${(entry.contribution / entry.weight) * 100}%` }} />
+                      </span>
+                      <span className="small">
+                        {entry.contribution.toFixed(1)} / {entry.weight}
+                      </span>
+                    </span>
                   </td>
-                  <td>
-                    <span className={`pill ${entry.method === 'blend' ? 'pill-purple' : 'pill-gray'}`}>{method}</span>
-                    {isDescription && breakdown.description && (
-                      <div className="muted small" style={{ marginTop: 4 }}>
-                        text {Math.round(breakdown.description.trigram_similarity * 100)}%
-                        {semantic != null && <> · meaning {Math.round(semantic * 100)}%</>}
-                      </div>
-                    )}
-                    {row.key === 'date' && breakdown.date?.days_apart != null && (
-                      <div className="muted small" style={{ marginTop: 4 }}>
-                        {Math.abs(breakdown.date.days_apart)} day(s) apart
-                      </div>
-                    )}
+                  <td data-label="Method">
+                    <span className="cell-value">
+                      <span className={`pill ${entry.method === 'blend' ? 'pill-purple' : 'pill-gray'}`}>{method}</span>
+                      {isDescription && breakdown.description && (
+                        <span className="muted small">
+                          text {Math.round(breakdown.description.trigram_similarity * 100)}%
+                          {semantic != null && <> · meaning {Math.round(semantic * 100)}%</>}
+                        </span>
+                      )}
+                      {row.key === 'date' && breakdown.date?.days_apart != null && (
+                        <span className="muted small">{Math.abs(breakdown.date.days_apart)} day(s) apart</span>
+                      )}
+                    </span>
                   </td>
                 </tr>
               )

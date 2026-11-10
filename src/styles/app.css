@@ -1487,6 +1487,43 @@ fieldset {
 
 /* ── Matching (M3) ──────────────────────────────────────── */
 
+.breakdown-table .cell-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.breakdown-table .breakdown-bar {
+  display: block;
+}
+
+.breakdown-points-mobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Breakdown rows become one card per attribute: label + points on top,
+     then your value / found value / method. Points live in the header. */
+  .data-table.breakdown-table.stack-mobile th[scope='row'] {
+    justify-content: space-between;
+  }
+
+  .breakdown-points-mobile {
+    display: inline;
+    font-weight: 700;
+    color: var(--color-accent-orange);
+  }
+
+  .breakdown-table td.breakdown-points {
+    display: none;
+  }
+
+  .breakdown-table .cell-value {
+    align-items: flex-end;
+  }
+}
+
 .score-ring {
   position: relative;
   flex-shrink: 0;

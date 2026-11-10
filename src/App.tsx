@@ -16,6 +16,10 @@ import { FoundItemDetailPage } from './pages/items/FoundItemDetailPage'
 import { ItemEditPage } from './pages/items/ItemEditPage'
 import { MatchesPage } from './pages/matches/MatchesPage'
 import { MatchDetailPage } from './pages/matches/MatchDetailPage'
+import { ClaimsPage } from './pages/claims/ClaimsPage'
+import { SubmitClaimPage } from './pages/claims/SubmitClaimPage'
+import { ClaimDetailPage } from './pages/claims/ClaimDetailPage'
+import { QrLandingPage } from './pages/qr/QrLandingPage'
 import { PlaceholderPage } from './pages/PlaceholderPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
@@ -24,7 +28,7 @@ export default function App() {
     <Routes>
       {/* Public */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/q/:slug" element={<PlaceholderPage title="FoundIT Box" module="Claims, Collection & QR (M4)" />} />
+      <Route path="/q/:slug" element={<QrLandingPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
 
@@ -56,9 +60,9 @@ export default function App() {
           <Route path="/matches/:id" element={<MatchDetailPage />} />
 
           {/* M4 — Claims, Collection & QR */}
-          <Route path="/claims" element={<PlaceholderPage title="My Claims" module="Claims & QR (M4)" />} />
-          <Route path="/claims/new/:matchId" element={<PlaceholderPage title="Submit Claim" module="Claims & QR (M4)" />} />
-          <Route path="/claims/:id" element={<PlaceholderPage title="Claim Detail" module="Claims & QR (M4)" />} />
+          <Route path="/claims" element={<ClaimsPage />} />
+          <Route path="/claims/new/:matchId" element={<SubmitClaimPage />} />
+          <Route path="/claims/:id" element={<ClaimDetailPage />} />
 
           {/* M5 — Notifications */}
           <Route path="/notifications" element={<PlaceholderPage title="Notifications" module="Admin & Notifications (M5)" />} />

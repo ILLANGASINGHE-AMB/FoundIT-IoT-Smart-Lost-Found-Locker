@@ -1,7 +1,8 @@
-import { Link, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Ban, Lock, Pencil } from 'lucide-react'
+import { Ban, KeyRound, Lock, Pencil } from 'lucide-react'
 import { cancelLostItem, getLostItemById, getLostItemPrivateInfo } from '../../services/lostItems'
 import { getItemImages } from '../../services/items'
 import { useAuth } from '../../hooks/useAuth'
@@ -12,6 +13,7 @@ import { StatusTimeline } from '../../components/items/StatusTimeline'
 import { ItemImageGallery } from '../../components/items/ItemImageGallery'
 import { AddPhotos } from '../../components/items/AddPhotos'
 import { LostItemMatches } from '../../components/matching/LostItemMatches'
+import { CredentialRecoveryModal } from '../../components/claims/CredentialRecoveryModal'
 import { IDENTIFIER_LABELS } from '../../components/items/itemSchemas'
 import type { IdentifierType } from '../../types'
 
@@ -20,6 +22,8 @@ export function LostItemDetailPage() {
   const { id = '' } = useParams()
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const [params, setParams] = useSearchParams()
+  const [recovering, setRecovering] = useState(params.get('recover') === '1')
 
   const itemQuery = useQuery({ queryKey: ['lost-item', id], queryFn: () => getLostItemById(id) })
   const privateQuery = useQuery({
@@ -66,6 +70,11 @@ export function LostItemDetailPage() {
   const item = itemQuery.data
   const isOwner = item.user_id === user?.id
   const editable = isOwner && (item.status === 'LOST' || item.status === 'MATCHED')
+  const canRecover = isOwner && !['RESOLVED', 'CANCELLED'].includes(item.status)
+  const closeRecovery = () => {
+    setRecovering(false)
+    if (params.has('recover')) setParams({}, { replace: true })
+  }
 
   return (
     <div className="page">
@@ -80,22 +89,31 @@ export function LostItemDetailPage() {
           </span>
         }
         actions={
-          editable && (
+          (editable || canRecover) && (
             <>
-              <Link to={`/lost/${item.id}/edit`} className="btn btn-secondary">
-                <Pencil size={16} /> Edit
-              </Link>
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={cancel.isPending}
-                onClick={() =>
-                  window.confirm('Cancel this lost report? Matching will stop and this cannot be undone.') &&
-                  cancel.mutate()
-                }
-              >
-                <Ban size={16} /> Cancel report
-              </button>
+              {canRecover && (
+                <button type="button" className="btn btn-ghost" onClick={() => setRecovering(true)}>
+                  <KeyRound size={16} /> Recover credential
+                </button>
+              )}
+              {editable && (
+                <>
+                  <Link to={`/lost/${item.id}/edit`} className="btn btn-secondary">
+                    <Pencil size={16} /> Edit
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={cancel.isPending}
+                    onClick={() =>
+                      window.confirm('Cancel this lost report? Matching will stop and this cannot be undone.') &&
+                      cancel.mutate()
+                    }
+                  >
+                    <Ban size={16} /> Cancel report
+                  </button>
+                </>
+              )}
             </>
           )
         }
@@ -179,6 +197,10 @@ export function LostItemDetailPage() {
           </div>
         </div>
       </div>
+
+      {recovering && canRecover && (
+        <CredentialRecoveryModal lostItemId={item.id} itemTitle={item.title} onClose={closeRecovery} />
+      )}
     </div>
   )
 }

@@ -73,8 +73,6 @@ export function normalizeClaimCode(code: string): string {
     .toUpperCase()
     .replace(/[\s-]/g, '')
     .replace(/^FND/, '')
-    .replace(/O/g, '0')
-    .replace(/[IL]/g, '1')
 }
 
 export function isWellFormedClaimCode(code: string): boolean {

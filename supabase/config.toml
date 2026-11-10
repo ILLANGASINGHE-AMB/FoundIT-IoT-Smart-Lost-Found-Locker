@@ -40,3 +40,7 @@ double_confirm_changes = true
 enabled = false
 client_id = "env(GOOGLE_CLIENT_ID)"
 secret = "env(GOOGLE_CLIENT_SECRET)"
+
+# QR landing page calls this before the visitor has signed in.
+[functions.log-qr-scan]
+verify_jwt = false

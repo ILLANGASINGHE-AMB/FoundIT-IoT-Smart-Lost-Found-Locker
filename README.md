@@ -18,7 +18,7 @@ Functions) · Google Gemini embeddings · Vercel hosting.
 | M1: Authentication & User Profiles (+ Phase 0 foundation) | `Auth-&-Profiles` | ✅ Implemented |
 | M2: Lost & Found Item Management | `Lost-&-Found-Management` | ✅ Implemented |
 | M3: Matching Engine (Gemini) | `Matching-Engine` | ✅ Implemented |
-| M4: Claims, Collection & QR | `Claims-Collection-QR` | ⏳ Placeholder routes |
+| M4: Claims, Collection & QR | `Claims-Collection-QR` | ✅ Implemented |
 | M5: Admin Dashboard & Notifications | `Admin-&-Notifications` | ⏳ Placeholder routes |
 
 Each module branch builds on the one before it
@@ -138,6 +138,50 @@ migration, the Edge Functions and the new report form.
   lost-item page lists its matches and has a "Check again" button.
 - **RLS:** a candidate is visible only to the lost item's owner and admins.
   Only the engine (service role) can create candidates.
+
+## What's in this branch (M4: Claims, Collection & QR)
+
+**Claim workflow** (spec §23–25, §29–31). Every state change goes through
+an Edge Function.
+
+| Function | Who can call it | What it does |
+|---|---|---|
+| `submit-claim` | Lost-item owner (or an admin on the owner's behalf) | Opens a `PENDING` claim from an open match and notifies admins |
+| `verify-claim` | Claimant | Step 1: fuzzy-compares the private ownership detail server-side (`pg_trgm`, threshold 0.45) |
+| `verify-claim-code` | Claimant | Step 2: HMACs the `FND-…` credential and compares it in constant time. On success the claim moves to `UNDER_REVIEW` |
+| `recover-claim-credential` | Lost-item owner | Re-verifies the private detail, issues a new code and invalidates the old one. Logged as `RECOVERED_CLAIM_CREDENTIAL` |
+| `approve-claim` / `reject-claim` | Admin | Approve (assigns the collection point and auto-rejects competing claims) or reject with a reason. Notifies the claimant |
+| `complete-collection` | Collection officer | Checks the credential presented at the desk, or records a manual identity override. Marks the claim `COMPLETED`, the lost item `RESOLVED` and the found item `RETURNED`, and writes a `collections` row |
+| `log-qr-scan` | Anyone (public) | Resolves an active FoundIT Box by `qr_slug` and logs `QR_SCAN_*` to `audit_logs` |
+
+- **Abuse protection:** every verification attempt is written to
+  `claim_attempts`, which clients cannot insert into. Five failures within
+  24 hours lock the claim (`is_locked`, `UNDER_REVIEW`), log
+  `LOCKED_CLAIM_ATTEMPTS`, and notify the admins and the claimant.
+  Credential recovery is limited to 5 failures per day per item.
+- **RLS:** claims, verifications, attempts and collections are visible only
+  to the claimant and admins, and clients have no write access at all. A
+  user can hold at most one active claim per found item. Claimants can
+  withdraw a pending claim with the `cancel_claim()` RPC.
+- **UI:** `/claims` (status filters and credential recovery),
+  `/claims/new/:matchId`, and `/claims/:id`. The claim page has a
+  step-by-step verification wizard with an `<AttemptCounter>`, a status
+  timeline (Submitted → Under review → Approved → Collected), verification
+  results, and collection details. The lost-item page gets a "Recover
+  credential" button.
+- **QR system** (spec §27): `/q/:slug` is public and has large tap targets
+  (88 px) for one-handed use.
+  - "I found something" opens `/found/new` with the box and location
+    pre-filled.
+  - "I lost something" goes to the login page (which returns here
+    afterwards), or to `/claims?at=<box>`, which lists your matches held at
+    that box.
+  - Inactive or unknown codes show a friendly page.
+  - `<QRCodeDisplay>` renders an SVG QR code with download and print
+    actions. The admin collection-point page in M5 uses it.
+- **PWA** (`vite-plugin-pwa`): installable, with a manifest, FoundIT icons,
+  and a precached app shell so the QR landing and auth pages open offline.
+  An "Add to Home Screen" prompt appears on mobile after a scan.
 
 ## Local development
 

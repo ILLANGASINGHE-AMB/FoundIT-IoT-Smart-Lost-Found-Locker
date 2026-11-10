@@ -1108,6 +1108,34 @@ a.sidebar-nav-item {
 
 /* ── Items (M2) ─────────────────────────────────────────── */
 
+@media (max-width: 767px) {
+  /* An empty gallery shouldn't take a whole screen of height. */
+  .gallery-empty {
+    aspect-ratio: auto;
+    height: 120px;
+  }
+
+  .gallery-main {
+    aspect-ratio: 4 / 3;
+  }
+
+  .photo-dropzone {
+    padding: 16px 12px;
+  }
+
+  .photo-dropzone > svg {
+    display: none;
+  }
+
+  .item-detail-layout {
+    gap: 14px;
+  }
+
+  .wizard-steps {
+    gap: 6px;
+  }
+}
+
 .item-card-link {
   display: block;
   max-width: none;

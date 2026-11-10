@@ -2157,16 +2157,17 @@ fieldset {
 }
 
 @media (max-width: 767px) {
-  .admin-stats-grid {
+  /* Prefixed: these override base rules declared later in this section. */
+  .admin-shell .admin-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
-  .hero-kpi {
+  .admin-shell .hero-kpi {
     padding: 18px;
   }
 
-  .hero-kpi-value {
+  .admin-shell .hero-kpi-value {
     font-size: 2.4rem;
   }
 

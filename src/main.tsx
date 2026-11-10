@@ -8,18 +8,15 @@ import './styles/app.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext'
 import { queryClient } from './lib/queryClient'
-import { isSupabaseConfigured } from './lib/supabase'
+import { isDemoMode } from './lib/supabase'
+import { DemoBanner } from './components/ui/DemoBanner'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          {!isSupabaseConfigured && (
-            <div className="config-banner" role="alert">
-              Supabase is not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (see README).
-            </div>
-          )}
+          {isDemoMode && <DemoBanner />}
           <App />
           <Toaster position="top-center" richColors closeButton />
         </AuthProvider>

@@ -237,6 +237,34 @@ This branch contains **the complete app**: all five modules merged together.
 `foundit - Copy.zip` (the original UI snapshot committed to this branch) is
 kept unchanged.
 
+## Demo mode (try it without Supabase)
+
+Run `npm install && npm run dev` with **no** Supabase variables set (or
+`VITE_DEMO_MODE=true`), and the whole system runs inside the browser.
+`src/lib/demo/` stands in for the Supabase client, with the same `from`,
+`rpc`, `auth`, `storage`, `functions` and `channel` API, and stores
+everything in localStorage and IndexedDB. It includes JavaScript ports of
+the RLS policies, the SQL functions and every Edge Function, so the pages
+run unchanged.
+
+| Account | Password | Role |
+|---|---|---|
+| `alex@foundit.demo` | `Demo@1234` | User: lost a calculator and has an open match |
+| `sam@foundit.demo` | `Demo@1234` | User: the finder |
+| `admin@foundit.demo` | `Admin@1234` | Admin and collection officer |
+
+Try the claim flow as Alex: open **Matches → Start claim**, answer
+*"scratch beside the AC button"*, and enter the credential
+`FND-7K4P-92XQ-M3TA`. Then sign in as admin to approve the claim and
+complete the collection with the same code. Scan
+`http://localhost:5173/q/lib-7k4p92` to see the QR landing page.
+
+Limitations: there's no Gemini offline, so matching uses the lexical
+fallback. Password-reset "emails" appear as an on-screen toast. Data lives
+only in this browser; the **Reset demo data** button in the banner wipes
+it. Use a private window to be signed in as two users at once. Demo mode
+is not secure and is meant for local testing only.
+
 ## Local development
 
 ```bash

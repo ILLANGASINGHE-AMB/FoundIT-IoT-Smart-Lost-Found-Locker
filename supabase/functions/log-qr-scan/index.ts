@@ -1,49 +1,87 @@
-// POST /log-qr-scan  { qr_slug, action: "SCAN" | "STORE" | "CLAIM" }
-// Public (verify_jwt = false): QR scans can happen before login.
-// Resolves an active collection point by slug and logs the scan to
-// audit_logs with the service role (spec §27.4). A scan only changes where
-// the user lands — never what they are allowed to do.
 
-import { HttpError, ok, serve } from '../_shared/http.ts'
-import { adminClient, audit } from '../_shared/supabase.ts'
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ACTIONS = new Set(['SCAN', 'STORE', 'CLAIM'])
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
-async function optionalUserId(req: Request): Promise<string | null> {
-  const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
-  if (!token) return null
-  const { data } = await adminClient().auth.getUser(token)
-  return data.user?.id ?? null
-}
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-serve(async (req, body) => {
-  const slug = typeof body.qr_slug === 'string' ? body.qr_slug.trim().toLowerCase() : ''
-  const action = typeof body.action === 'string' ? body.action.toUpperCase() : 'SCAN'
-  if (!/^[a-z0-9_-]{6,32}$/.test(slug)) throw new HttpError(404, 'This QR code is not recognised.', 'QR_NOT_FOUND')
-  if (!ACTIONS.has(action)) throw new HttpError(400, 'action must be SCAN, STORE or CLAIM')
+  const respond = (data: object, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    });
 
-  const { data: point } = await adminClient()
-    .from('collection_points')
-    .select('id, name, address, description, contact, location_id, location:locations(name)')
-    .eq('qr_slug', slug)
-    .eq('qr_active', true)
-    .eq('status', 'ACTIVE')
-    .maybeSingle()
+  if (req.method !== "POST") {
+    return respond({ error: "Method not allowed" }, 405);
+  }
 
-  if (!point) throw new HttpError(404, 'This QR code is no longer active.', 'QR_INACTIVE')
+  let body: { qr_slug?: string };
 
-  await audit(`QR_SCAN_${action}`, { type: 'collection_point', id: point.id }, await optionalUserId(req), {
-    qr_slug: slug,
-  })
+  try {
+    body = await req.json();
+  } catch {
+    return respond({ error: "Invalid JSON" }, 400);
+  }
 
-  return ok({
-    collection_point_id: point.id,
-    name: point.name,
-    address: point.address,
-    description: point.description,
-    contact: point.contact,
-    location_id: point.location_id,
-    // deno-lint-ignore no-explicit-any
-    location_name: (point as any).location?.name ?? null,
-  })
-})
+  const slug = body.qr_slug?.trim();
+
+  if (!slug || !/^[a-zA-Z0-9-]{6,100}$/.test(slug)) {
+    return respond({ error: "Invalid QR slug" }, 400);
+  }
+
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const admin = createClient(url, serviceKey);
+
+  const { data: point, error: pointError } = await admin
+    .from("collection_points")
+    .select("id, name, address, qr_active, is_active")
+    .eq("qr_slug", slug)
+    .maybeSingle();
+
+  if (pointError) {
+    console.error("QR lookup failed:", pointError);
+    return respond({ error: "Could not check QR code" }, 500);
+  }
+
+  if (!point || !point.qr_active || !point.is_active) {
+    return respond(
+      { error: "This QR code is invalid or inactive" },
+      404,
+    );
+  }
+
+  const { error: scanError } = await admin
+    .from("qr_scans")
+    .insert({
+      collection_point_id: point.id,
+      scanned_at: new Date().toISOString(),
+    });
+
+  if (scanError) {
+    console.error("QR scan logging failed:", scanError);
+    return respond({ error: "Could not record QR scan" }, 500);
+  }
+
+  return respond({
+    success: true,
+    message: "QR scan recorded successfully",
+    collection_point: {
+      id: point.id,
+      name: point.name,
+      address: point.address,
+    },
+  });
+});

@@ -1,85 +1,150 @@
-// POST /submit-claim  { match_candidate_id }
-// Opens a claim (status PENDING) for an OPEN match candidate. The owner of
-// the lost item claims for themselves; an admin may open one on the
-// owner's behalf ("Convert to claim"). Admins are notified.
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-import { HttpError, ok, serve } from '../_shared/http.ts'
-import { adminClient, audit, requireUser } from '../_shared/supabase.ts'
-import { uuidField } from '../_shared/claims.ts'
-import { notify } from '../_shared/notify.ts'
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
-serve(async (req, body) => {
-  const caller = await requireUser(req)
-  const matchId = uuidField(body, 'match_candidate_id')
-  const db = adminClient()
+function hex(bytes: Uint8Array) {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
-  const { data: match } = await db
-    .from('match_candidates')
-    .select('id, status, lost_item_id, found_item_id, lost_item:lost_items(user_id, status, title), found_item:found_items(status, collection_point_id)')
-    .eq('id', matchId)
-    .maybeSingle()
+function randomBytes(length: number) {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
 
-  // deno-lint-ignore no-explicit-any
-  const m = match as any
-  if (!m || (m.lost_item.user_id !== caller.user.id && caller.role !== 'admin')) {
-    throw new HttpError(404, 'Match not found')
+async function hashCredential(credential: string, salt: Uint8Array) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(credential),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 310000,
+      hash: "SHA-256",
+    },
+    key,
+    256,
+  );
+
+  return hex(new Uint8Array(bits));
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
-  // Already claimed from this match? Return the existing claim (idempotent).
-  const { data: existing } = await db
-    .from('claims')
-    .select('*')
-    .eq('match_candidate_id', matchId)
-    .in('status', ['PENDING', 'UNDER_REVIEW', 'APPROVED'])
-    .maybeSingle()
-  if (existing) return ok(existing)
-
-  if (m.status !== 'OPEN') throw new HttpError(409, 'This match can no longer be claimed.')
-  if (!['LOST', 'MATCHED'].includes(m.lost_item.status)) {
-    throw new HttpError(409, 'Your lost report is no longer open for claims.')
-  }
-  if (!['FOUND', 'IN_STORAGE', 'MATCHED', 'CLAIM_PENDING'].includes(m.found_item.status)) {
-    throw new HttpError(409, 'This found item is no longer available to claim.')
+  if (req.method !== "POST") {
+    return Response.json(
+      { error: "Method not allowed" },
+      { status: 405, headers: corsHeaders },
+    );
   }
 
-  const { data: claim, error } = await db
-    .from('claims')
-    .insert({
-      match_candidate_id: matchId,
-      lost_item_id: m.lost_item_id,
-      found_item_id: m.found_item_id,
-      claimant_id: m.lost_item.user_id,
-      collection_point_id: m.found_item.collection_point_id,
-      status: 'PENDING',
-    })
-    .select('*')
-    .single()
-  if (error) {
-    if (error.code === '23505') throw new HttpError(409, 'You already have an active claim for this item.')
-    throw error
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return Response.json(
+        { error: "Sign in is required." },
+        { status: 401, headers: corsHeaders },
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const token = authHeader.replace("Bearer ", "");
+
+    const authClient = createClient(supabaseUrl, anonKey);
+    const { data: userData, error: authError } = await authClient.auth.getUser(token);
+
+    if (authError || !userData.user) {
+      return Response.json(
+        { error: "Your session is invalid. Please sign in again." },
+        { status: 401, headers: corsHeaders },
+      );
+    }
+
+    const body = await req.json();
+    const matchId = body.match_id;
+
+    if (
+      typeof matchId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId)
+    ) {
+      return Response.json(
+        { error: "A valid match_id is required." },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+
+    const admin = createClient(supabaseUrl, serviceKey);
+
+    const credential = `FI-${hex(randomBytes(12)).toUpperCase()}`;
+    const salt = randomBytes(16);
+    const credentialHash = await hashCredential(credential, salt);
+
+    const { data: claim, error: insertError } = await admin
+      .from("claims")
+      .insert({
+        match_id: matchId,
+        claimant_id: userData.user.id,
+        status: "pending",
+      })
+      .select("id, status, created_at")
+      .single();
+
+    if (insertError || !claim) {
+      console.error("Claim creation failed:", insertError?.message);
+      return Response.json(
+        { error: "Could not submit your claim." },
+        { status: 500, headers: corsHeaders },
+      );
+    }
+
+    const { error: secretError } = await admin
+      .schema("private")
+      .from("claim_secrets")
+      .insert({
+        claim_id: claim.id,
+        credential_hash: credentialHash,
+        credential_salt: hex(salt),
+      });
+
+    if (secretError) {
+      await admin.from("claims").delete().eq("id", claim.id);
+      console.error("Credential storage failed:", secretError.message);
+      return Response.json(
+        { error: "Could not securely create claim credentials." },
+        { status: 500, headers: corsHeaders },
+      );
+    }
+
+    return Response.json(
+      {
+        message: "Claim submitted successfully.",
+        claim,
+        claim_credential: credential,
+        warning: "Save this credential securely. It will only be shown once.",
+      },
+      { status: 201, headers: corsHeaders },
+    );
+  } catch (error) {
+    console.error("Unexpected submit-claim error:", error);
+    return Response.json(
+      { error: "Unexpected server error." },
+      { status: 500, headers: corsHeaders },
+    );
   }
-
-  await Promise.all([
-    db.from('match_candidates').update({ status: 'CONVERTED_TO_CLAIM' }).eq('id', matchId),
-    db.from('lost_items').update({ status: 'CLAIM_PENDING' }).eq('id', m.lost_item_id),
-    db
-      .from('found_items')
-      .update({ status: 'CLAIM_PENDING' })
-      .eq('id', m.found_item_id)
-      .in('status', ['FOUND', 'IN_STORAGE', 'MATCHED']),
-  ])
-
-  await audit('SUBMITTED_CLAIM', { type: 'claim', id: claim.id }, caller.user.id, {
-    match_candidate_id: matchId,
-    on_behalf: caller.user.id !== m.lost_item.user_id,
-  })
-  await notify({
-    toAdmins: true,
-    type: 'CLAIM',
-    title: 'New claim submitted',
-    message: `A claim was opened for “${m.lost_item.title}”.`,
-    link: `/admin/claims/${claim.id}`,
-  })
-
-  return ok(claim, 201)
-})
+});

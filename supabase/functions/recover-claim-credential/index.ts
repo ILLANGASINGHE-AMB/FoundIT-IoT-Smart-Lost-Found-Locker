@@ -1,78 +1,151 @@
-// POST /recover-claim-credential  { lost_item_id, private_attribute_answer }
-// Spec §24 recovery: the signed-in owner re-verifies with their private
-// ownership detail; a NEW credential is issued, the old hash is replaced
-// (invalidated) and the code is returned once. Failed recoveries are
-// rate-limited (5 per 24h per item) via audit_logs.
 
-import { HttpError, ok, serve } from '../_shared/http.ts'
-import { adminClient, audit, requireUser } from '../_shared/supabase.ts'
-import { generateClaimCode, hashClaimCode } from '../_shared/crypto.ts'
-import {
-  ATTEMPT_WINDOW_HOURS,
-  MAX_FAILED_ATTEMPTS,
-  checkPrivateAnswer,
-  textField,
-  uuidField,
-} from '../_shared/claims.ts'
-import { notify } from '../_shared/notify.ts'
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-serve(async (req, body) => {
-  const caller = await requireUser(req)
-  const lostItemId = uuidField(body, 'lost_item_id')
-  const answer = textField(body, 'private_attribute_answer', 1000)
-  const db = adminClient()
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
-  const { data: item } = await db.from('lost_items').select('id, user_id, status, title').eq('id', lostItemId).maybeSingle()
-  if (!item || item.user_id !== caller.user.id) throw new HttpError(404, 'Report not found')
-  if (['RESOLVED', 'CANCELLED'].includes(item.status)) {
-    throw new HttpError(409, 'This report is closed; its credential can no longer be recovered.')
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function hashCredential(
+  code: string,
+  salt: Uint8Array,
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(code),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 310000,
+      hash: "SHA-256",
+    },
+    key,
+    256,
+  );
+
+  return hex(new Uint8Array(bits));
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
-  const since = new Date(Date.now() - ATTEMPT_WINDOW_HOURS * 3600_000).toISOString()
-  const { count: recentFailures } = await db
-    .from('audit_logs')
-    .select('id', { count: 'exact', head: true })
-    .eq('action', 'FAILED_CREDENTIAL_RECOVERY')
-    .eq('entity_id', lostItemId)
-    .gt('created_at', since)
-  if ((recentFailures ?? 0) >= MAX_FAILED_ATTEMPTS) {
-    throw new HttpError(429, 'Too many failed attempts. Please try again tomorrow or contact an administrator.')
+  const respond = (data: object, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    });
+
+  if (req.method !== "POST") {
+    return respond({ error: "Method not allowed" }, 405);
   }
 
-  const { passed, onFile } = await checkPrivateAnswer(lostItemId, answer)
-  if (!onFile) {
-    throw new HttpError(
+  const authorization = req.headers.get("Authorization");
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return respond({ error: "Authentication required" }, 401);
+  }
+
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const authClient = createClient(url, anonKey);
+
+  const { data: authData, error: authError } =
+    await authClient.auth.getUser(authorization.slice(7));
+
+  if (authError || !authData.user) {
+    return respond({ error: "Invalid session" }, 401);
+  }
+
+  let body: { claim_id?: string };
+
+  try {
+    body = await req.json();
+  } catch {
+    return respond({ error: "Invalid JSON" }, 400);
+  }
+
+  const claimId = body.claim_id;
+
+  if (!claimId || !/^[0-9a-f-]{36}$/i.test(claimId)) {
+    return respond({ error: "Valid claim_id is required" }, 400);
+  }
+
+  const admin = createClient(url, serviceKey);
+
+  const { data: claim, error: claimError } = await admin
+    .from("claims")
+    .select("id, claimant_id, status")
+    .eq("id", claimId)
+    .maybeSingle();
+
+  if (claimError) {
+    console.error("Claim lookup failed:", claimError);
+    return respond({ error: "Could not retrieve claim" }, 500);
+  }
+
+  if (!claim || claim.claimant_id !== authData.user.id) {
+    return respond(
+      { error: "Claim not found or not authorized" },
+      404,
+    );
+  }
+
+  if (claim.status === "rejected" || claim.status === "collected") {
+    return respond(
+      { error: "Credential recovery is unavailable for this claim" },
       409,
-      'No private ownership details were recorded for this report, so the credential cannot be recovered online. Please contact an administrator.',
-    )
-  }
-  if (!passed) {
-    await audit('FAILED_CREDENTIAL_RECOVERY', { type: 'lost_item', id: lostItemId }, caller.user.id)
-    const remaining = Math.max(0, MAX_FAILED_ATTEMPTS - (recentFailures ?? 0) - 1)
-    throw new HttpError(
-      403,
-      `That doesn’t match the private details on file. ${remaining} attempt(s) remaining.`,
-      'RECOVERY_FAILED',
-    )
+    );
   }
 
-  const claimCode = generateClaimCode()
-  const { error } = await db.from('lost_item_secrets').upsert({
-    lost_item_id: lostItemId,
-    claim_code_hash: await hashClaimCode(claimCode),
-    code_issued_at: new Date().toISOString(),
-  })
-  if (error) throw error
+  // Generate a new credential; the old credential becomes invalid.
+  const random = crypto.getRandomValues(new Uint8Array(12));
+  const credential = `FI-${hex(random).toUpperCase()}`;
 
-  await audit('RECOVERED_CLAIM_CREDENTIAL', { type: 'lost_item', id: lostItemId }, caller.user.id)
-  await notify({
-    user_id: caller.user.id,
-    type: 'SYSTEM',
-    title: 'Your claim credential was reset',
-    message: `A new claim credential was issued for “${item.title}”. The previous code no longer works. If this wasn’t you, contact FoundIT immediately.`,
-    link: `/lost/${lostItemId}`,
-    email: true,
-  })
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const credentialHash = await hashCredential(credential, salt);
 
-  return ok({ claim_code: claimCode })
-})
+  const { data: rotated, error: rotateError } = await admin.rpc(
+    "rotate_claim_secret",
+    {
+      p_claim_id: claimId,
+      p_credential_hash: credentialHash,
+      p_credential_salt: hex(salt),
+    },
+  );
+
+  if (rotateError || rotated !== true) {
+    console.error("Credential rotation failed:", rotateError);
+    return respond(
+      { error: "Could not recover claim credential" },
+      500,
+    );
+  }
+
+  return respond({
+    message: "New claim credential generated successfully",
+    claim_id: claimId,
+    credential,
+    warning: "Save this credential securely. It will only be shown once.",
+  });
+});

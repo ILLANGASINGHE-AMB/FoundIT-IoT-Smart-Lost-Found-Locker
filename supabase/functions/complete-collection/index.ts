@@ -1,83 +1,257 @@
-// POST /complete-collection  { claim_id, claim_code?, override_reason?, notes? }
-// Collection officer (admin with is_collection_officer) hands the item over.
-// The claimant presents their claim credential at the desk; if they can't,
-// the officer may verify identity manually and give an override reason
-// (audited). Closes the case: claim COMPLETED, lost RESOLVED, found RETURNED.
 
-import { HttpError, ok, serve } from '../_shared/http.ts'
-import { adminClient, audit, requireAdmin } from '../_shared/supabase.ts'
-import { hashClaimCode, isWellFormedClaimCode, safeEqual } from '../_shared/crypto.ts'
-import { loadClaim, recordAttempt, textField, uuidField } from '../_shared/claims.ts'
-import { notify } from '../_shared/notify.ts'
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-serve(async (req, body) => {
-  const officer = await requireAdmin(req)
-  if (!officer.isCollectionOfficer) {
-    throw new HttpError(403, 'Only collection officers can release items.')
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function fromHex(value: string): Uint8Array {
+  if (!/^(?:[0-9a-f]{2})+$/i.test(value)) {
+    throw new Error("Invalid stored credential data");
+  }
+  return new Uint8Array(
+    value.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
+  );
+}
+
+async function hashCredential(code: string, salt: Uint8Array) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(code),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 310000,
+      hash: "SHA-256",
+    },
+    key,
+    256,
+  );
+
+  return hex(new Uint8Array(bits));
+}
+
+function safeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
-  const claim = await loadClaim(uuidField(body, 'claim_id'))
-  if (claim.status !== 'APPROVED') throw new HttpError(409, 'Only approved claims can be collected.')
+  const respond = (data: object, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    });
 
-  const code = textField(body, 'claim_code', 40, false)
-  const overrideReason = textField(body, 'override_reason', 500, false)
-  const notes = textField(body, 'notes', 1000, false)
-  const db = adminClient()
-
-  if (!code && !overrideReason) {
-    throw new HttpError(400, 'Enter the claimant’s claim credential, or record why identity was verified manually.')
+  if (req.method !== "POST") {
+    return respond({ error: "Method not allowed" }, 405);
   }
 
-  if (code) {
-    const { data: secret } = await db
-      .from('lost_item_secrets')
-      .select('claim_code_hash')
-      .eq('lost_item_id', claim.lost_item_id)
-      .maybeSingle()
-    const passed =
-      isWellFormedClaimCode(code) &&
-      Boolean(secret?.claim_code_hash) &&
-      safeEqual(await hashClaimCode(code), secret!.claim_code_hash)
-    await recordAttempt(claim, officer.user.id, 'CLAIM_CODE', passed)
-    if (!passed) throw new HttpError(403, 'That claim credential is not valid for this claim.', 'INVALID_CODE')
+  const authorization = req.headers.get("Authorization");
+
+  if (!authorization?.startsWith("Bearer ")) {
+    return respond({ error: "Authentication required" }, 401);
   }
 
-  const now = new Date().toISOString()
-  const { data: completed, error } = await db
-    .from('claims')
-    .update({ status: 'COMPLETED', completed_at: now })
-    .eq('id', claim.id)
-    .eq('status', 'APPROVED')
-    .select('*')
-    .single()
-  if (error || !completed) throw new HttpError(409, 'The claim changed in the meantime. Refresh and try again.')
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-  const { error: collectionError } = await db.from('collections').insert({
-    claim_id: claim.id,
-    collected_by: officer.user.id,
-    collected_at: now,
-    notes: [notes, overrideReason && `Manual identity verification: ${overrideReason}`].filter(Boolean).join('\n') || null,
-  })
-  if (collectionError) throw collectionError
+  const authClient = createClient(url, anonKey);
 
-  await Promise.all([
-    db.from('lost_items').update({ status: 'RESOLVED' }).eq('id', claim.lost_item_id),
-    db.from('found_items').update({ status: 'RETURNED' }).eq('id', claim.found_item_id),
-    db.from('match_candidates').update({ status: 'DISMISSED' }).eq('found_item_id', claim.found_item_id).eq('status', 'OPEN'),
-  ])
+  const { data: authData, error: authError } =
+    await authClient.auth.getUser(authorization.slice(7));
 
-  await audit('COMPLETED_COLLECTION', { type: 'claim', id: claim.id }, officer.user.id, {
-    verified_by: code ? 'CLAIM_CODE' : 'MANUAL_OVERRIDE',
-    override_reason: overrideReason || null,
-  })
-  await notify({
-    user_id: claim.claimant_id,
-    type: 'COLLECTION',
-    title: 'Your item has been collected',
-    message: 'Your item was handed over and your case is closed. Thank you for using FoundIT!',
-    link: `/claims/${claim.id}`,
-    email: true,
-  })
+  if (authError || !authData.user) {
+    return respond({ error: "Invalid session" }, 401);
+  }
 
-  return ok(completed)
-})
+  const role = authData.user.app_metadata?.role;
+
+  if (role !== "officer" && role !== "admin") {
+    return respond(
+      { error: "Only officers or admins can complete collection" },
+      403,
+    );
+  }
+
+  let body: {
+    claim_id?: string;
+    collection_point_id?: string;
+    credential?: string;
+    notes?: string;
+  };
+
+  try {
+    body = await req.json();
+  } catch {
+    return respond({ error: "Invalid JSON" }, 400);
+  }
+
+  const { claim_id, collection_point_id } = body;
+  const credential = body.credential?.trim().toUpperCase();
+
+  if (!claim_id || !/^[0-9a-f-]{36}$/i.test(claim_id)) {
+    return respond({ error: "Valid claim_id is required" }, 400);
+  }
+
+  if (
+    !collection_point_id ||
+    !/^[0-9a-f-]{36}$/i.test(collection_point_id)
+  ) {
+    return respond(
+      { error: "Valid collection_point_id is required" },
+      400,
+    );
+  }
+
+  if (!credential || !/^FI-[0-9A-F]{24}$/.test(credential)) {
+    return respond({ error: "Valid claim credential is required" }, 400);
+  }
+
+  const admin = createClient(url, serviceKey);
+
+  const { data: claim, error: claimError } = await admin
+    .from("claims")
+    .select("id, status, collection_point_id")
+    .eq("id", claim_id)
+    .maybeSingle();
+
+  if (claimError) {
+    console.error("Claim lookup failed:", claimError);
+    return respond({ error: "Could not retrieve claim" }, 500);
+  }
+
+  if (!claim) {
+    return respond({ error: "Claim not found" }, 404);
+  }
+
+  if (claim.status !== "verified") {
+    return respond(
+      { error: "Claim must be approved before collection" },
+      409,
+    );
+  }
+
+  if (
+    claim.collection_point_id &&
+    claim.collection_point_id !== collection_point_id
+  ) {
+    return respond({ error: "Incorrect collection point" }, 409);
+  }
+
+  const { data: secrets, error: secretError } = await admin.rpc(
+    "get_claim_secret",
+    { p_claim_id: claim_id },
+  );
+
+  if (secretError) {
+    console.error("Secret retrieval failed:", secretError);
+    return respond({ error: "Could not verify claim credential" }, 500);
+  }
+
+  const secret = secrets?.[0];
+
+  if (!secret) {
+    return respond({ error: "Claim credential not found" }, 404);
+  }
+
+  if (secret.locked_at || secret.failed_attempts >= 5) {
+    return respond({ error: "Claim credential is locked" }, 423);
+  }
+
+  let valid = false;
+
+  try {
+    const calculatedHash = await hashCredential(
+      credential,
+      fromHex(secret.credential_salt),
+    );
+    valid = safeEqual(calculatedHash, secret.credential_hash);
+  } catch (error) {
+    console.error("Credential comparison failed:", error);
+    return respond({ error: "Credential verification failed" }, 500);
+  }
+
+  const { error: attemptError } = await admin.rpc(
+    "record_claim_attempt",
+    {
+      p_claim_id: claim_id,
+      p_success: valid,
+    },
+  );
+
+  if (attemptError) {
+    console.error("Attempt recording failed:", attemptError);
+    if (attemptError.message?.toLowerCase().includes("locked")) {
+      return respond({ error: "Claim credential is locked" }, 423);
+    }
+    return respond({ error: "Could not record verification attempt" }, 500);
+  }
+
+  if (!valid) {
+    const { data: updatedSecrets } = await admin.rpc(
+      "get_claim_secret",
+      { p_claim_id: claim_id },
+    );
+
+    const attempts = updatedSecrets?.[0]?.failed_attempts ?? 5;
+
+    return respond(
+      {
+        error: "Incorrect claim credential",
+        attempts_remaining: Math.max(0, 5 - attempts),
+      },
+      attempts >= 5 ? 423 : 401,
+    );
+  }
+
+  const { data: collectionId, error: collectionError } =
+    await admin.rpc("complete_claim_collection", {
+      p_claim_id: claim_id,
+      p_collection_point_id: collection_point_id,
+      p_completed_by: authData.user.id,
+      p_notes: body.notes?.slice(0, 1000) || null,
+    });
+
+  if (collectionError) {
+    console.error("Collection completion failed:", collectionError);
+    return respond(
+      { error: "Could not complete collection" },
+      409,
+    );
+  }
+
+  return respond({
+    message: "Collection completed successfully",
+    claim_id,
+    collection_id: collectionId,
+    status: "collected",
+  });
+});

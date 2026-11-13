@@ -1,73 +1,46 @@
-// POST /verify-claim  { claim_id, private_attribute_answer }
-// Step 1 of claim verification (spec §23 method 1/4): the claimant answers
-// with their private ownership detail; it is fuzzy-compared server-side
-// with what they recorded when reporting the item. Every attempt is logged
-// in claim_attempts; 5 failures in 24h lock the claim for admin review.
 
-import { HttpError, ok, serve } from '../_shared/http.ts'
-import { adminClient, requireUser } from '../_shared/supabase.ts'
-import {
-  assertClaimant,
-  assertNotLocked,
-  checkPrivateAnswer,
-  failedAttempts,
-  hasPassed,
-  loadClaim,
-  MAX_FAILED_ATTEMPTS,
-  recordAttempt,
-  textField,
-  uuidField,
-} from '../_shared/claims.ts'
+// Follow this setup guide to integrate the Deno language server with your editor:
+// https://deno.land/manual/getting_started/setup_your_environment
+// This enables autocomplete, go to definition, etc.
 
-serve(async (req, body) => {
-  const caller = await requireUser(req)
-  const claim = await loadClaim(uuidField(body, 'claim_id'))
-  assertClaimant(claim, caller)
-  if (claim.status !== 'PENDING') throw new HttpError(409, 'This claim is not awaiting verification.')
-  assertNotLocked(claim)
+// Setup type definitions for built-in Supabase Runtime APIs
+import "@supabase/functions-js/edge-runtime.d.ts";
+import { withSupabase } from "@supabase/server";
 
-  if (await hasPassed(claim.id, 'PRIVATE_ATTRIBUTE')) {
-    return ok({
-      result: 'PASSED',
-      remaining_attempts: MAX_FAILED_ATTEMPTS - (await failedAttempts(claim.id)),
-      locked: false,
-      next_step: 'CLAIM_CODE',
-    })
-  }
+console.log("Hello from Functions!");
 
-  const answer = textField(body, 'private_attribute_answer', 1000)
-  const db = adminClient()
-  const { passed, onFile } = await checkPrivateAnswer(claim.lost_item_id, answer)
+// This endpoint uses 'publishable' | 'secret' access, apiKey is required.
+// Use publishable for Client-facing, key-validated endpoints
+// Use secret for Server-to-server, internal calls
+export default {
+  fetch: withSupabase({ auth: ["publishable", "secret"] }, async (req, ctx) => {
+    // Called by another service with a secret key
+    // ctx.supabaseAdmin bypasses RLS — use for privileged operations
+    /*
+    if (ctx.authMode === "secret") {
+      const { user_id } = await req.json();
+      const { data } = await ctx.supabaseAdmin.auth.admin.getUserById(user_id);
 
-  // Keep the answer on the claim so the reviewer can compare it with the item.
-  await db.from('claims').update({ private_attribute_answer: answer }).eq('id', claim.id)
+      return Response.json({
+        email: data?.user?.email,
+      });
+    }
+    */
 
-  if (!onFile) {
-    // Nothing recorded at report time: nothing to auto-check, so the step
-    // passes and the reviewer compares the answer with the physical item.
-    await db.from('claim_verifications').insert({
-      claim_id: claim.id,
-      verification_type: 'PRIVATE_ATTRIBUTE',
-      result: 'PASSED',
-      notes: 'No private details on file — reviewer must compare the answer with the item.',
-    })
-    return ok({
-      result: 'PASSED',
-      remaining_attempts: MAX_FAILED_ATTEMPTS - (await failedAttempts(claim.id)),
-      locked: false,
-      next_step: 'CLAIM_CODE',
-    })
-  }
+    const { name } = await req.json();
 
-  const outcome = await recordAttempt(claim, caller.user.id, 'PRIVATE_ATTRIBUTE', passed)
-  if (passed) {
-    await db.from('claim_verifications').insert({
-      claim_id: claim.id,
-      verification_type: 'PRIVATE_ATTRIBUTE',
-      result: 'PASSED',
-      notes: 'Answer matched the private ownership details on file.',
-    })
-  }
+    return Response.json({
+      message: `Hello ${name}!`,
+    });
+  }),
+};
+/* To invoke locally:
 
-  return ok({ ...outcome, next_step: passed ? 'CLAIM_CODE' : outcome.locked ? 'LOCKED' : 'PRIVATE_ATTRIBUTE' })
-})
+  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
+  2. Make an HTTP request:
+
+  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/verify-claim' \
+    --header 'apiKey: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' \
+    --data '{"name":"Functions"}'
+
+*/
